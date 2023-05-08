@@ -26,17 +26,11 @@ COPY pkg pkg
 env CGO_ENABLED=1
 RUN GOOS=linux GOARCH=amd64 go build -o /go/bin/products pkg/examples/products/main.go
 RUN chmod +x /go/bin/products
-############################
-# STEP 2 build a small image
-############################
 FROM alpine
-# Import from builder.
+ENV GIN_MODE=release
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
-# Copy our static executable
 COPY --from=builder /go/bin/products /go/bin/products
-# Use an unprivileged user.
 USER user:user
-# Run the products binary.
 ENTRYPOINT ["/go/bin/products"]
