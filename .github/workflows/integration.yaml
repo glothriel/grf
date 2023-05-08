@@ -1,0 +1,36 @@
+name: Integration tests
+on: [pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v2
+
+      - name: Run linters
+        uses: PiwikPRO/actions/python/lint@master
+        with:
+          use-black: true
+          use-flake: true
+          use-isort: true
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v2
+
+      - name: Setup integration tests
+        uses: PiwikPRO/actions/go/setup/integration@1.0.0
+
+      - name: Run integration tests
+        env:
+          PP_DTOOLS_TOKEN: ${{ secrets.DTOOLS_TOKEN }}
+        run: py.test -v --tb=short
