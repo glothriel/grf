@@ -1,0 +1,51 @@
+name: Performance test
+on: [pull_request]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build image
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          load: true
+          tags: "products:latest"
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run container from image
+        run: docker run -d -p 8080:8080 products:latest --db=/tmp/db.sqlite3
+
+      - name: Install k6
+        run: |
+          curl https://github.com/grafana/k6/releases/download/v0.44.0/k6-v0.44.0-linux-amd64.tar.gz -L | tar xvz --strip-components 1
+
+      - name: Run the container monitor script in the background
+        run: python .github/scripts/monitor.py products:latest system.html &
+
+      - name: Run the tests
+        run: ./k6 run tests/k6/test.js --vus 10 --duration 30s
+
+      - name: Archive k6 test result
+        uses: actions/upload-artifact@v3
+        with:
+          name: k6
+          path: k6.html
+
+      - name: Archive system resources diagrams
+        uses: actions/upload-artifact@v3
+        with:
+          name: system
+          path: system.html
