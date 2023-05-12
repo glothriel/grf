@@ -43,7 +43,7 @@ import { textSummary } from "https://jslib.k6.io/k6-summary/0.0.1/index.js";
 
 export function handleSummary(data) {
   return {
-    "k6.html": htmlReport(data),
+    // "results.json": JSON.stringify(data),
     stdout: textSummary(data, { indent: " ", enableColors: true }),
   };
 }
