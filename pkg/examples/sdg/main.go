@@ -96,11 +96,14 @@ func main() {
 				if err != nil {
 					return nil, err
 				}
-				// TODO this should be in framework itself - if custom data type is not parsed from json object
-				// prevalidate that value - otherwise mapstructure will blow up
 				previousValueType, ok := previousValue.([]interface{})
 				if !ok {
 					return nil, &serializers.ValidationError{map[string][]string{"url_contains": {"Expected SliceOfStrings"}}}
+				}
+				for i, v := range previousValueType {
+					if _, ok := v.(string); !ok {
+						return nil, fmt.Errorf("url_contains[%d] is not a string", i)
+					}
 				}
 				return previousValueType, nil
 			}
