@@ -34,6 +34,8 @@ import (
 
 type SliceOfItems[T any] []T
 
+// integers need to be defined as SliceOfItems[float64] because of the way that json.Unmarshal works
+// this doesn't work for maps e.g SliceOfItems[map[string]string]
 func (s SliceOfItems[T]) Process(f *fields.Field[SDGConfig]) {
 	previousValueFunc := f.InternalValueFunc
 	var m T
