@@ -34,6 +34,8 @@ func (i *InternalValue[Model]) Fields() (map[string]interface{}, error) {
 
 func (i *InternalValue[Model]) AsModel() (Model, error) {
 	var entity Model
+	// FIXME it will fail as 5xx for more complex types like slice of string that will have integer
+	// it should return nice validation error of invalid value for given slice index
 	decoder, decoderErr := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		TagName: "json",
 		Result:  &entity,
