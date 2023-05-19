@@ -115,3 +115,6 @@ artifacts
 
 # vim
 .*.sw[a-z]
+
+# internal
+artifacts
