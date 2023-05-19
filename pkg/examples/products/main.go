@@ -47,7 +47,9 @@ func main() {
 		&serializers.GoPlaygroundValidator[Product]{},
 	)
 
-	views.NewListCreateModelView[Product]("/products", db).WithFieldTypeMapper(mapper).WithSerializer(
+	views.NewListCreateModelView[Product]("/products", db).WithFieldTypeMapper(
+		mapper,
+	).WithSerializer(
 		serializer,
 	).WithListSerializer(
 		serializers.NewModelSerializer[Product](mapper).

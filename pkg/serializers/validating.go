@@ -27,6 +27,14 @@ func (s *ValidatingSerializer[Model]) ToRepresentation(intVal *models.InternalVa
 	return s.child.ToRepresentation(intVal)
 }
 
+func (s *ValidatingSerializer[Model]) FromDB(raw map[string]interface{}) (*models.InternalValue[Model], error) {
+	intVal, err := s.child.FromDB(raw)
+	if err != nil {
+		return intVal, err
+	}
+	return intVal, s.Validate(intVal)
+}
+
 func (s *ValidatingSerializer[Model]) Validate(intVal *models.InternalValue[Model]) error {
 	errors := make([]error, 0)
 	for _, validator := range s.Validators {

@@ -5,13 +5,14 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/glothriel/gin-rest-framework/pkg/fields"
 	"github.com/glothriel/gin-rest-framework/pkg/models"
 	"github.com/glothriel/gin-rest-framework/pkg/types"
 	"github.com/sirupsen/logrus"
 )
 
 type ModelSerializer[Model any] struct {
-	Fields          map[string]Field[Model]
+	Fields          map[string]fields.Field[Model]
 	FieldTypeMapper *types.FieldTypeMapper
 }
 
@@ -22,6 +23,9 @@ func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]interface{}) (*m
 		field, ok := s.Fields[k]
 		if !ok {
 			superfluousFields = append(superfluousFields, k)
+			continue
+		}
+		if !field.Writable {
 			continue
 		}
 		intV, err := field.InternalValueFunc(raw, k)
@@ -47,6 +51,9 @@ func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]interface{}) (*m
 func (s *ModelSerializer[Model]) ToRepresentation(intVal *models.InternalValue[Model]) (map[string]interface{}, error) {
 	raw := make(map[string]interface{})
 	for _, field := range s.Fields {
+		if !field.Readable {
+			continue
+		}
 		value, err := field.ToRepresentation(intVal)
 
 		if err != nil {
@@ -57,20 +64,48 @@ func (s *ModelSerializer[Model]) ToRepresentation(intVal *models.InternalValue[M
 	return raw, nil
 }
 
+func (s *ModelSerializer[Model]) FromDB(raw map[string]interface{}) (*models.InternalValue[Model], error) {
+	intVMap := make(map[string]interface{})
+	for k := range raw {
+		field, ok := s.Fields[k]
+		if !ok {
+			continue
+		}
+		intV, err := field.FromDBFunc(raw, k)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to serialize field `%s` from database: %s", k, err)
+		}
+		intVMap[k] = intV
+	}
+
+	return &models.InternalValue[Model]{Map: intVMap}, nil
+}
+
 func (s *ModelSerializer[Model]) Validate(intVal *models.InternalValue[Model]) error {
 	return nil
 }
 
-func (s *ModelSerializer[Model]) WithField(field Field[Model]) *ModelSerializer[Model] {
+func (s *ModelSerializer[Model]) WithField(field fields.Field[Model]) *ModelSerializer[Model] {
 	s.Fields[field.Name()] = field
 	return s
 }
 
-func (s *ModelSerializer[Model]) WithExistingFields(fields []string) *ModelSerializer[Model] {
-	s.Fields = make(map[string]Field[Model])
+func (s *ModelSerializer[Model]) WithFieldUpdated(name string, updateFunc func(f *fields.Field[Model])) *ModelSerializer[Model] {
+	v, ok := s.Fields[name]
+	if !ok {
+		var m Model
+		logrus.Fatalf("Could not find field `%s` on model `%s` when registering serializer field", name, reflect.TypeOf(m))
+	}
+	updateFunc(&v)
+	return s
+
+}
+
+func (s *ModelSerializer[Model]) WithExistingFields(passedFields []string) *ModelSerializer[Model] {
+	s.Fields = make(map[string]fields.Field[Model])
 	var m Model
 	attributeTypes := DetectAttributes(m)
-	for _, field := range fields {
+	for _, field := range passedFields {
 		attributeType, ok := attributeTypes[field]
 		if !ok {
 			logrus.Fatalf("Could not find field `%s` on model `%s` when registering serializer field", field, reflect.TypeOf(m))
@@ -83,11 +118,13 @@ func (s *ModelSerializer[Model]) WithExistingFields(fields []string) *ModelSeria
 		if toInternalValueErr != nil {
 			logrus.Fatalf("Could not determine internal value of field `%s` on model `%s`: %s", field, reflect.TypeOf(m), toInternalValueErr)
 		}
-		s.Fields[field] = Field[Model]{
-			ItsName:            field,
-			RepresentationFunc: ConvertFuncToRepresentationFuncAdapter[Model](toRepresentation),
-			InternalValueFunc:  ConvertFuncToInternalValueFuncAdapter(toInternalValue),
-		}
+		s.Fields[field] = *fields.NewField[Model](
+			field,
+		).WithRepresentationFunc(
+			ConvertFuncToRepresentationFuncAdapter[Model](toRepresentation),
+		).WithInternalValueFunc(
+			ConvertFuncToInternalValueFuncAdapter(toInternalValue),
+		)
 	}
 	return s
 }
@@ -107,62 +144,15 @@ func NewModelSerializer[Model any](ftm *types.FieldTypeMapper) *ModelSerializer[
 	}).WithExistingFields(fieldNames)
 }
 
-type RepresentationFunc[Model any] func(*models.InternalValue[Model], string) (interface{}, error)
-type InternalValueFunc func(map[string]interface{}, string) (interface{}, error)
-
-func ConvertFuncToRepresentationFuncAdapter[Model any](cf types.ConvertFunc) RepresentationFunc[Model] {
+func ConvertFuncToRepresentationFuncAdapter[Model any](cf types.ConvertFunc) fields.RepresentationFunc[Model] {
 	return func(intVal *models.InternalValue[Model], name string) (interface{}, error) {
 		return cf(intVal.Map[name])
 	}
 }
 
-func ConvertFuncToInternalValueFuncAdapter(cf types.ConvertFunc) InternalValueFunc {
+func ConvertFuncToInternalValueFuncAdapter(cf types.ConvertFunc) fields.InternalValueFunc {
 	return func(reprModel map[string]interface{}, name string) (interface{}, error) {
 		return cf(reprModel[name])
-	}
-}
-
-func RepresentationPassthrough[Model any]() RepresentationFunc[Model] {
-	return func(intVal *models.InternalValue[Model], name string) (interface{}, error) {
-		return intVal.Map[name], nil
-	}
-}
-
-func InternalValuePassthrough() InternalValueFunc {
-	return func(reprModel map[string]interface{}, name string) (interface{}, error) {
-		return reprModel[name], nil
-	}
-}
-
-type Field[Model any] struct {
-	ItsName            string
-	RepresentationFunc RepresentationFunc[Model]
-	InternalValueFunc  InternalValueFunc
-	Readable           bool
-	Writable           bool
-}
-
-func (s *Field[Model]) Name() string {
-	return s.ItsName
-}
-
-func (s *Field[Model]) ToRepresentation(intVal *models.InternalValue[Model]) (interface{}, error) {
-	return s.RepresentationFunc(intVal, s.ItsName)
-}
-
-func (s *Field[Model]) ToInternalValue(reprModel map[string]interface{}) (interface{}, error) {
-	return s.InternalValueFunc(reprModel, s.ItsName)
-}
-
-func ExistingField[Model any](name string) Field[Model] {
-	return Field[Model]{
-		ItsName: name,
-		RepresentationFunc: func(intVal *models.InternalValue[Model], name string) (interface{}, error) {
-			return intVal.Map[name], nil
-		},
-		InternalValueFunc: func(reprModel map[string]interface{}, name string) (interface{}, error) {
-			return reprModel[name], nil
-		},
 	}
 }
 

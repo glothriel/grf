@@ -11,7 +11,17 @@ import (
 	"gorm.io/gorm"
 )
 
-type FilterFunc func(*gin.Context, *gorm.DB) *gorm.DB
+type QueryModFunc func(*gin.Context, *gorm.DB) *gorm.DB
+
+func QueryModPassThrough(ctx *gin.Context, db *gorm.DB) *gorm.DB {
+	return db
+}
+
+func QueryModOrderBy(order string) QueryModFunc {
+	return func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
+		return db.Order(order)
+	}
+}
 
 type ModelViewContext[Model any] struct {
 	Serializer serializers.Serializer[Model]
@@ -23,7 +33,8 @@ type ModelViewContext[Model any] struct {
 	DeleteSerializer   serializers.Serializer[Model]
 
 	Pagination      pagination.Pagination
-	Filter          FilterFunc
+	Filter          QueryModFunc
+	OrderBy         QueryModFunc
 	IDFunc          func(ModelViewContext[Model], *gin.Context) string
 	DB              *gorm.DB
 	FieldTypeMapper *types.FieldTypeMapper
@@ -39,7 +50,8 @@ func NewDefaultModelViewContext[Model any](DB *gorm.DB) ModelViewContext[Model] 
 	return ModelViewContext[Model]{
 		Serializer:      &serializers.MissingSerializer[Model]{},
 		Pagination:      &pagination.NoPagination{},
-		Filter:          func(ctx *gin.Context, db *gorm.DB) *gorm.DB { return db },
+		Filter:          QueryModPassThrough,
+		OrderBy:         QueryModPassThrough,
 		DB:              DB,
 		IDFunc:          IDFromQueryParamIDFunc[Model],
 		FieldTypeMapper: types.DefaultFieldTypeMapper(),
@@ -120,6 +132,11 @@ func (v *ModelView[Model]) WithFilter(filter func(*gin.Context, *gorm.DB) *gorm.
 	return v
 }
 
+func (v *ModelView[Model]) WithOrderBy(order string) *ModelView[Model] {
+	v.Context.OrderBy = QueryModOrderBy(order)
+	return v
+}
+
 func (v *ModelView[Model]) WithAuthentication(authenticator authentication.Authentication) *ModelView[Model] {
 	v.view.Authentication(authenticator)
 	return v
@@ -178,15 +195,18 @@ func NewRetrieveUpdateDeleteModelView[Model any](path string, db *gorm.DB) *Mode
 
 func ListModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var entities []Model
-		modelCtx.Pagination.Apply(ctx, modelCtx.Filter(ctx, modelCtx.DBSession())).Find(&entities)
+		var entities []map[string]interface{}
+		modelCtx.Pagination.Apply(
+			ctx,
+			modelCtx.OrderBy(ctx, modelCtx.Filter(ctx, modelCtx.DBSession())),
+		).Find(&entities)
 		rawElements := []interface{}{}
 		effectiveSerializer := modelCtx.ListSerializer
 		if effectiveSerializer == nil {
 			effectiveSerializer = modelCtx.Serializer
 		}
 		for _, entity := range entities {
-			internalValue, internalValueErr := models.InternalValueFromModel(entity)
+			internalValue, internalValueErr := effectiveSerializer.FromDB(entity)
 			if internalValueErr != nil {
 				WriteError(ctx, internalValueErr)
 				return
