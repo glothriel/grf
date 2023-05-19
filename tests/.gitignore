@@ -117,4 +117,4 @@ artifacts
 .*.sw[a-z]
 
 # internal
-artifacts
+artifacts/*
