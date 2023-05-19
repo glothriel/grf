@@ -30,28 +30,34 @@ import (
 }
 */
 
-type JSON json.RawMessage
+type SliceOfStrings []string
 
 // Scan scan value into Jsonb, implements sql.Scanner interface
-func (j *JSON) Scan(value interface{}) error {
+func (j *SliceOfStrings) Scan(value interface{}) error {
 	bytes, ok := value.([]byte)
 	if !ok {
 		return errors.New(fmt.Sprint("Failed to unmarshal JSONB value:", value))
 	}
 
-	result := json.RawMessage{}
+	result := SliceOfStrings{}
 	err := json.Unmarshal(bytes, &result)
-	*j = JSON(result)
+	*j = result
 	return err
 }
 
 // Value return json value, implement driver.Valuer interface
-func (j JSON) Value() (driver.Value, error) {
+func (j SliceOfStrings) Value() (driver.Value, error) {
 	if len(j) == 0 {
 		return nil, nil
 	}
-	return json.RawMessage(j).MarshalJSON()
+	return json.Marshal(j)
 }
+
+/*
+url_contains
+"string" "string"
+
+*/
 
 type SDGConfig struct {
 	models.BaseModel
@@ -62,7 +68,7 @@ type SDGConfig struct {
 	// go-playground validator doesn't support bools - workaround is to remove required and set default value
 	UrlFilter bool `json:"url_filter" gorm:"default:false"`
 	// TODO validate is json an array of strings
-	UrlContains JSON `json:"url_contains"  gorm:"default:[]"` // FIXME array of strings
+	UrlContains SliceOfStrings `json:"url_contains" gorm:"type:text"` // FIXME array of strings
 }
 
 func main() {
@@ -120,14 +126,16 @@ func getTypeMapper() *types.FieldTypeMapper {
 			return uuid.Parse(theUUID)
 		},
 	})
-	mapper.Register("main.JSON", types.FieldType{
+	mapper.Register("main.SliceOfStrings", types.FieldType{
 		InternalToResponse: func(v interface{}) (interface{}, error) {
-			var content interface{}
-			err := json.Unmarshal(v.(JSON), &content)
-			return content, err
+			//var content interface{}
+			//err := json.Unmarshal(v.([]byte), &content)
+			//return content, err
+			return v, nil
 		},
 		RequestToInternal: func(v interface{}) (interface{}, error) {
-			return json.Marshal(v)
+			//return json.Marshal(v)
+			return v, nil
 		},
 	})
 	return mapper
