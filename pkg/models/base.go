@@ -53,6 +53,26 @@ func (i *InternalValue[Model]) AsModel() (Model, error) {
 	return entity, nil
 }
 
+// function that converts a map to a struct using reflection without mapstructure
+// use json keys as struct field names
+func MapToStruct[Model any](m map[string]interface{}) (Model, error) {
+	var entity Model
+	jsonTagsToFieldNames := map[string]string{}
+	t := reflect.TypeOf(entity)
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		jsonTag := field.Tag.Get("json")
+		if jsonTag != "" {
+			jsonTagsToFieldNames[jsonTag] = field.Name
+		}
+	}
+	v := reflect.ValueOf(&entity).Elem()
+	for k, val := range m {
+		v.FieldByName(jsonTagsToFieldNames[k]).Set(reflect.ValueOf(val))
+	}
+	return entity, nil
+}
+
 // Uses reflect package to do a shallow translation of the model to a map wrapped in an InternalValue. We
 // could use mapstructure, but it does a deep translation, which is not what we want.
 func InternalValueFromModel[Model any](entity Model) (*InternalValue[Model], error) {
