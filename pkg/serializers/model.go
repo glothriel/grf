@@ -12,7 +12,7 @@ import (
 )
 
 type ModelSerializer[Model any] struct {
-	Fields          map[string]fields.Field[Model]
+	Fields          map[string]*fields.Field[Model]
 	FieldTypeMapper *types.FieldTypeMapper
 }
 
@@ -88,7 +88,7 @@ func (s *ModelSerializer[Model]) Validate(intVal *models.InternalValue[Model]) e
 	return nil
 }
 
-func (s *ModelSerializer[Model]) WithField(field fields.Field[Model]) *ModelSerializer[Model] {
+func (s *ModelSerializer[Model]) WithField(field *fields.Field[Model]) *ModelSerializer[Model] {
 	s.Fields[field.Name()] = field
 	return s
 }
@@ -99,13 +99,13 @@ func (s *ModelSerializer[Model]) WithFieldUpdated(name string, updateFunc func(f
 		var m Model
 		logrus.Fatalf("Could not find field `%s` on model `%s` when registering serializer field", name, reflect.TypeOf(m))
 	}
-	updateFunc(&v)
+	updateFunc(v)
 	return s
 
 }
 
 func (s *ModelSerializer[Model]) WithExistingFields(passedFields []string) *ModelSerializer[Model] {
-	s.Fields = make(map[string]fields.Field[Model])
+	s.Fields = make(map[string]*fields.Field[Model])
 	var m Model
 	attributeTypes := DetectAttributes(m)
 	for _, field := range passedFields {
@@ -121,7 +121,7 @@ func (s *ModelSerializer[Model]) WithExistingFields(passedFields []string) *Mode
 		if toInternalValueErr != nil {
 			logrus.Fatalf("Could not determine internal value of field `%s` on model `%s`: %s", field, reflect.TypeOf(m), toInternalValueErr)
 		}
-		s.Fields[field] = *fields.NewField[Model](
+		s.Fields[field] = fields.NewField[Model](
 			field,
 		).WithRepresentationFunc(
 			ConvertFuncToRepresentationFuncAdapter[Model](toRepresentation),

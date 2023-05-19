@@ -6,8 +6,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-
 	"github.com/gin-gonic/gin"
+	"github.com/glothriel/gin-rest-framework/pkg/fields"
 	"github.com/glothriel/gin-rest-framework/pkg/models"
 	"github.com/glothriel/gin-rest-framework/pkg/serializers"
 	"github.com/glothriel/gin-rest-framework/pkg/types"
@@ -89,7 +89,22 @@ func main() {
 		logrus.Fatalf("Error migrating database: %s", migrateErr)
 	}
 	serializer := serializers.NewValidatingSerializer[SDGConfig](
-		serializers.NewModelSerializer[SDGConfig](mapper)).WithValidator(
+		serializers.NewModelSerializer[SDGConfig](mapper).WithFieldUpdated("url_contains", func(f *fields.Field[SDGConfig]) {
+			previousValueFunc := f.InternalValueFunc
+			f.InternalValueFunc = func(rawMap map[string]interface{}, key string) (interface{}, error) {
+				previousValue, err := previousValueFunc(rawMap, key)
+				if err != nil {
+					return nil, err
+				}
+				// TODO this should be in framework itself - if custom data type is not parsed from json object
+				// prevalidate that value - otherwise mapstructure will blow up
+				previousValueType, ok := previousValue.([]interface{})
+				if !ok {
+					return nil, &serializers.ValidationError{map[string][]string{"url_contains": {"Expected SliceOfStrings"}}}
+				}
+				return previousValueType, nil
+			}
+		})).WithValidator(
 		&serializers.GoPlaygroundValidator[SDGConfig]{},
 	)
 
