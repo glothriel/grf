@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"reflect"
 )
 
 /*
@@ -31,28 +32,74 @@ import (
 }
 */
 
-type SliceOfStrings []string
+type SliceOfItems[T any] []T
+
+func (s SliceOfItems[T]) Process(f *fields.Field[SDGConfig]) {
+	previousValueFunc := f.InternalValueFunc
+	var m T
+	typeName := reflect.TypeOf(m).Name()
+
+	f.InternalValueFunc = func(rawMap map[string]interface{}, key string) (interface{}, error) {
+		previousValue, err := previousValueFunc(rawMap, key)
+		if err != nil {
+			return nil, err
+		}
+		previousValueType, ok := previousValue.([]interface{})
+		if !ok {
+			return nil, &serializers.ValidationError{map[string][]string{"url_contains": {fmt.Sprintf("Expected %s", typeName)}}}
+		}
+		for i, v := range previousValueType {
+			if _, ok := v.(T); !ok {
+				return nil, fmt.Errorf("url_contains[%d] is not a %s", i, typeName)
+			}
+		}
+		return previousValueType, nil
+	}
+}
 
 // Scan scan value into Jsonb, implements sql.Scanner interface
-func (j *SliceOfStrings) Scan(value interface{}) error {
+func (j *SliceOfItems[T]) Scan(value interface{}) error {
 	bytes, ok := value.([]byte)
 	if !ok {
 		return errors.New(fmt.Sprint("Failed to unmarshal JSONB value:", value))
 	}
 
-	result := SliceOfStrings{}
+	result := SliceOfItems[T]{}
 	err := json.Unmarshal(bytes, &result)
 	*j = result
 	return err
 }
 
 // Value return json value, implement driver.Valuer interface
-func (j SliceOfStrings) Value() (driver.Value, error) {
+func (j SliceOfItems[T]) Value() (driver.Value, error) {
 	if len(j) == 0 {
 		return nil, nil
 	}
 	return json.Marshal(j)
 }
+
+//type SliceOfStrings []string
+//
+//// Scan scan value into Jsonb, implements sql.Scanner interface
+//func (j *SliceOfStrings) Scan(value interface{}) error {
+//	bytes, ok := value.([]byte)
+//	if !ok {
+//		return errors.New(fmt.Sprint("Failed to unmarshal JSONB value:", value))
+//	}
+//
+//	result := SliceOfStrings{}
+//	err := json.Unmarshal(bytes, &result)
+//	*j = result
+//	return err
+//}
+//
+//// Value return json value, implement driver.Valuer interface
+//func (j SliceOfStrings) Value() (driver.Value, error) {
+//	if len(j) == 0 {
+//		return nil, nil
+//	}
+//	return json.Marshal(j)
+//}
 
 /*
 url_contains
@@ -69,7 +116,7 @@ type SDGConfig struct {
 	// go-playground validator doesn't support bools - workaround is to remove required and set default value
 	UrlFilter bool `json:"url_filter" gorm:"default:false"`
 	// TODO validate is json an array of strings
-	UrlContains SliceOfStrings `json:"url_contains" gorm:"type:text"` // FIXME array of strings
+	UrlContains SliceOfItems[string] `json:"url_contains" gorm:"type:text"` // FIXME array of strings
 }
 
 func main() {
@@ -89,25 +136,7 @@ func main() {
 		logrus.Fatalf("Error migrating database: %s", migrateErr)
 	}
 	serializer := serializers.NewValidatingSerializer[SDGConfig](
-		serializers.NewModelSerializer[SDGConfig](mapper).WithFieldUpdated("url_contains", func(f *fields.Field[SDGConfig]) {
-			previousValueFunc := f.InternalValueFunc
-			f.InternalValueFunc = func(rawMap map[string]interface{}, key string) (interface{}, error) {
-				previousValue, err := previousValueFunc(rawMap, key)
-				if err != nil {
-					return nil, err
-				}
-				previousValueType, ok := previousValue.([]interface{})
-				if !ok {
-					return nil, &serializers.ValidationError{map[string][]string{"url_contains": {"Expected SliceOfStrings"}}}
-				}
-				for i, v := range previousValueType {
-					if _, ok := v.(string); !ok {
-						return nil, fmt.Errorf("url_contains[%d] is not a string", i)
-					}
-				}
-				return previousValueType, nil
-			}
-		})).WithValidator(
+		serializers.NewModelSerializer[SDGConfig](mapper)).WithValidator(
 		&serializers.GoPlaygroundValidator[SDGConfig]{},
 	)
 
@@ -145,7 +174,7 @@ func getTypeMapper() *types.FieldTypeMapper {
 			return uuid.Parse(theUUID)
 		},
 	})
-	mapper.Register("main.SliceOfStrings", types.FieldType{
+	mapper.Register("main.SliceOfItems[string]", types.FieldType{
 		InternalToResponse: types.ConvertPassThrough,
 		RequestToInternal:  types.ConvertPassThrough,
 	})

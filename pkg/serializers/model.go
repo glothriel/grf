@@ -129,7 +129,22 @@ func (s *ModelSerializer[Model]) WithExistingFields(passedFields []string) *Mode
 			ConvertFuncToInternalValueFuncAdapter(toInternalValue),
 		)
 	}
+	fields := reflect.VisibleFields(reflect.TypeOf(m))
+	v := reflect.ValueOf(m)
+	for _, field := range fields {
+		if !field.Anonymous {
+			fieldProcessor, ok := v.FieldByName(field.Name).Interface().(FieldProcessor[Model])
+			if ok {
+				logrus.Errorf("It works!")
+				fieldProcessor.Process(s.Fields[field.Tag.Get("json")])
+			}
+		}
+	}
 	return s
+}
+
+type FieldProcessor[Model any] interface {
+	Process(f *fields.Field[Model])
 }
 
 func NewModelSerializer[Model any](ftm *types.FieldTypeMapper) *ModelSerializer[Model] {
