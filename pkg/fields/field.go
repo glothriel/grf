@@ -3,6 +3,7 @@ package fields
 import (
 	"database/sql"
 	"fmt"
+	"reflect"
 
 	"github.com/glothriel/gin-rest-framework/pkg/models"
 	"github.com/sirupsen/logrus"
@@ -75,7 +76,7 @@ func NewField[Model any](name string) *Field[Model] {
 		RepresentationFunc: func(intVal *models.InternalValue[Model], name string) (interface{}, error) {
 			return intVal.Map[name], nil
 		},
-		FromDBFunc:        SQLScanningFromDBFunc,
+		FromDBFunc:        SQLScanningFromDBFuncFactory[Model](),
 		InternalValueFunc: InternalValuePassthrough(),
 		Readable:          true,
 		Writable:          true,
@@ -88,15 +89,44 @@ func InternalValuePassthrough() InternalValueFunc {
 	}
 }
 
-func SQLScanningFromDBFunc(reprModel map[string]interface{}, name string) (interface{}, error) {
-	v, ok := reprModel[name].(sql.Scanner)
-	if !ok {
-		logrus.Debugf("Field `%s` is not a sql.Scanner, returning value as is", name)
-		return reprModel[name], nil
+func SQLScanningFromDBFuncFactory[Model any]() func(map[string]interface{}, string) (interface{}, error) {
+	var entity Model
+	jsonTagsToFieldNames := map[string]string{}
+	for _, field := range reflect.VisibleFields(reflect.TypeOf(entity)) {
+		jsonTag := field.Tag.Get("json")
+		if jsonTag != "" {
+			jsonTagsToFieldNames[jsonTag] = field.Name
+		}
 	}
-	scanErr := v.Scan(reprModel[name])
-	if scanErr != nil {
-		return nil, fmt.Errorf("could not convert field from db `%s`: %s", name, scanErr)
+	fieldBlueprints := map[string]reflect.Type{}
+	for fieldName := range jsonTagsToFieldNames {
+		ttype := reflect.TypeOf(
+			reflect.ValueOf(entity).FieldByName(jsonTagsToFieldNames[fieldName]).Interface(),
+		)
+		fieldBlueprints[fieldName] = ttype
 	}
-	return v, nil
+
+	return func(reprModel map[string]interface{}, name string) (interface{}, error) {
+
+		reflectedInstance := reflect.New(fieldBlueprints[name])
+
+		var realFieldValue any
+		if reflectedInstance.CanAddr() {
+			realFieldValue = reflectedInstance.Addr().Interface()
+		} else {
+			realFieldValue = reflectedInstance.Interface()
+		}
+
+		scanner, ok := realFieldValue.(sql.Scanner)
+		if !ok {
+			logrus.Debugf("Field `%s` is not a sql.Scanner, returning value as is", name)
+			return reprModel[name], nil
+		}
+
+		scanErr := scanner.Scan(reprModel[name])
+		if scanErr != nil {
+			return nil, fmt.Errorf("could not convert field from db `%s`: %s", name, scanErr)
+		}
+		return scanner, nil
+	}
 }

@@ -17,14 +17,32 @@ type FieldTypeMapper struct {
 
 func (s *FieldTypeMapper) ToRepresentation(typeString string) (ConvertFunc, error) {
 	if fieldType, ok := s.Registered[typeString]; ok {
-		return fieldType.InternalToResponse, nil
+		return func(i interface{}) (interface{}, error) {
+			result, resultErr := fieldType.InternalToResponse(i)
+			if resultErr != nil {
+				return nil, fmt.Errorf(
+					"Error converting internal value to representation for type `%s`: %s",
+					typeString, resultErr.Error(),
+				)
+			}
+			return result, nil
+		}, nil
 	}
 	return nil, fmt.Errorf("No representation function registered for type `%s`", typeString)
 }
 
 func (s *FieldTypeMapper) ToInternalValue(typeString string) (ConvertFunc, error) {
 	if fieldType, ok := s.Registered[typeString]; ok {
-		return fieldType.RequestToInternal, nil
+		return func(i interface{}) (interface{}, error) {
+			result, resultErr := fieldType.RequestToInternal(i)
+			if resultErr != nil {
+				return nil, fmt.Errorf(
+					"Error converting request value to internal value for type `%s`: %s",
+					typeString, resultErr.Error(),
+				)
+			}
+			return result, nil
+		}, nil
 	}
 	return nil, fmt.Errorf("No internal value function registered for type `%s`", typeString)
 }

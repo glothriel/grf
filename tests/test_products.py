@@ -124,10 +124,10 @@ def test_retrieve(some_products):
     assert dict(
         {k: v for k, v in response.json().items() if k not in ("created_at", "updated_at")}
     ) == {
-        "description": "Tasty and organic made from milk from happy cows",
+        "description": "Freshly picked from the tree",
         "id": product["id"],
-        "name": "Butter",
-        "price": "13.37",
+        "name": "Apples",
+        "price": "21",
     }
 
 
@@ -147,7 +147,7 @@ def test_update(some_products):
         "description": "updatedbar",
         "id": product["id"],
         "name": "updatedfoo",
-        "price": "13.37",
+        "price": "21",
     }
     assert response.status_code == 200
 

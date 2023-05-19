@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/gin-rest-framework/pkg/models"
 	"github.com/glothriel/gin-rest-framework/pkg/serializers"
@@ -63,7 +64,7 @@ type SDGConfig struct {
 	models.BaseModel
 
 	Enabled     bool   `json:"enabled" validate:"required"`
-	Integration string `json:"integration" gorm:"type:text;column:description" validate:"required"` // FIXME enum
+	Integration string `json:"integration" gorm:"type:text;column:integration" validate:"required"` // FIXME enum
 	ApiKey      string `json:"api_key" gorm:"column:api_key" validate:"required"`
 	// go-playground validator doesn't support bools - workaround is to remove required and set default value
 	UrlFilter bool `json:"url_filter" gorm:"default:false"`
@@ -127,16 +128,8 @@ func getTypeMapper() *types.FieldTypeMapper {
 		},
 	})
 	mapper.Register("main.SliceOfStrings", types.FieldType{
-		InternalToResponse: func(v interface{}) (interface{}, error) {
-			//var content interface{}
-			//err := json.Unmarshal(v.([]byte), &content)
-			//return content, err
-			return v, nil
-		},
-		RequestToInternal: func(v interface{}) (interface{}, error) {
-			//return json.Marshal(v)
-			return v, nil
-		},
+		InternalToResponse: types.ConvertPassThrough,
+		RequestToInternal:  types.ConvertPassThrough,
 	})
 	return mapper
 }

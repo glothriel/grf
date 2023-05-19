@@ -57,7 +57,9 @@ func (s *ModelSerializer[Model]) ToRepresentation(intVal *models.InternalValue[M
 		value, err := field.ToRepresentation(intVal)
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf(
+				"Failed to serialize field `%s` to representation: %w", field.Name(), err,
+			)
 		}
 		raw[field.Name()] = value
 	}
@@ -65,6 +67,7 @@ func (s *ModelSerializer[Model]) ToRepresentation(intVal *models.InternalValue[M
 }
 
 func (s *ModelSerializer[Model]) FromDB(raw map[string]interface{}) (*models.InternalValue[Model], error) {
+
 	intVMap := make(map[string]interface{})
 	for k := range raw {
 		field, ok := s.Fields[k]

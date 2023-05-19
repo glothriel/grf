@@ -32,7 +32,7 @@ func (s *ValidatingSerializer[Model]) FromDB(raw map[string]interface{}) (*model
 	if err != nil {
 		return intVal, err
 	}
-	return intVal, s.Validate(intVal)
+	return intVal, nil
 }
 
 func (s *ValidatingSerializer[Model]) Validate(intVal *models.InternalValue[Model]) error {

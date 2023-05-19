@@ -61,7 +61,7 @@ func main() {
 			}
 			return db
 		},
-	).Register(router)
+	).WithOrderBy("name DESC").Register(router)
 
 	views.NewRetrieveUpdateDeleteModelView[Product]("/products/:id", db).WithFieldTypeMapper(mapper).WithSerializer(
 		serializer,
