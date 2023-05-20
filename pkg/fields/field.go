@@ -76,7 +76,7 @@ func NewField[Model any](name string) *Field[Model] {
 		RepresentationFunc: func(intVal *models.InternalValue[Model], name string) (interface{}, error) {
 			return intVal.Map[name], nil
 		},
-		FromDBFunc:        SQLScanningFromDBFuncFactory[Model](),
+		FromDBFunc:        TrySQLScannerOrPassthrough[Model](),
 		InternalValueFunc: InternalValuePassthrough(),
 		Readable:          true,
 		Writable:          true,
@@ -89,7 +89,7 @@ func InternalValuePassthrough() InternalValueFunc {
 	}
 }
 
-func SQLScanningFromDBFuncFactory[Model any]() func(map[string]interface{}, string) (interface{}, error) {
+func TrySQLScannerOrPassthrough[Model any]() func(map[string]interface{}, string) (interface{}, error) {
 	var entity Model
 	jsonTagsToFieldNames := map[string]string{}
 	for _, field := range reflect.VisibleFields(reflect.TypeOf(entity)) {
@@ -107,7 +107,6 @@ func SQLScanningFromDBFuncFactory[Model any]() func(map[string]interface{}, stri
 	}
 
 	return func(reprModel map[string]interface{}, name string) (interface{}, error) {
-
 		reflectedInstance := reflect.New(fieldBlueprints[name])
 
 		var realFieldValue any

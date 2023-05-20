@@ -115,11 +115,13 @@ func (s *ModelSerializer[Model]) WithExistingFields(passedFields []string) *Mode
 		}
 		toRepresentation, toRepresentationErr := s.FieldTypeMapper.ToRepresentation(attributeType)
 		if toRepresentationErr != nil {
-			logrus.Fatalf("Could not determine representation of field `%s` on model `%s`: %s", field, reflect.TypeOf(m), toRepresentationErr)
+			logrus.Debugf("Could not determine representation of field `%s` on model `%s`: %s", field, reflect.TypeOf(m), toRepresentationErr)
+			toRepresentation = types.ConvertPassThrough
 		}
 		toInternalValue, toInternalValueErr := s.FieldTypeMapper.ToInternalValue(attributeType)
 		if toInternalValueErr != nil {
-			logrus.Fatalf("Could not determine internal value of field `%s` on model `%s`: %s", field, reflect.TypeOf(m), toInternalValueErr)
+			logrus.Debugf("Could not determine internal value of field `%s` on model `%s`: %s", field, reflect.TypeOf(m), toInternalValueErr)
+			toInternalValue = types.ConvertPassThrough
 		}
 		s.Fields[field] = fields.NewField[Model](
 			field,
@@ -133,21 +135,23 @@ func (s *ModelSerializer[Model]) WithExistingFields(passedFields []string) *Mode
 	v := reflect.ValueOf(m)
 	for _, field := range fields {
 		if !field.Anonymous {
-			fieldProcessor, ok := v.FieldByName(field.Name).Interface().(FieldProcessor[Model])
+			updater, ok := v.FieldByName(field.Name).Interface().(FieldUpdater[Model])
 			if ok {
-				logrus.Errorf("It works!")
-				fieldProcessor.Process(s.Fields[field.Tag.Get("json")])
+				updater.Update(s.Fields[field.Tag.Get("json")])
 			}
 		}
 	}
 	return s
 }
 
-type FieldProcessor[Model any] interface {
-	Process(f *fields.Field[Model])
+type FieldUpdater[Model any] interface {
+	Update(f *fields.Field[Model])
 }
 
 func NewModelSerializer[Model any](ftm *types.FieldTypeMapper) *ModelSerializer[Model] {
+	if ftm == nil {
+		ftm = types.DefaultFieldTypeMapper()
+	}
 	fieldNames := []string{}
 	var m Model
 	fields := reflect.VisibleFields(reflect.TypeOf(m))
