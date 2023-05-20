@@ -16,8 +16,8 @@ type ModelSerializer[Model any] struct {
 	FieldTypeMapper *types.FieldTypeMapper
 }
 
-func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]interface{}) (*models.InternalValue[Model], error) {
-	intVMap := make(map[string]interface{})
+func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any) (*models.InternalValue[Model], error) {
+	intVMap := make(map[string]any)
 	superfluousFields := make([]string, 0)
 	for k := range raw {
 		field, ok := s.Fields[k]
@@ -48,8 +48,8 @@ func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]interface{}) (*m
 	return &models.InternalValue[Model]{Map: intVMap}, nil
 }
 
-func (s *ModelSerializer[Model]) ToRepresentation(intVal *models.InternalValue[Model]) (map[string]interface{}, error) {
-	raw := make(map[string]interface{})
+func (s *ModelSerializer[Model]) ToRepresentation(intVal *models.InternalValue[Model]) (map[string]any, error) {
+	raw := make(map[string]any)
 	for _, field := range s.Fields {
 		if !field.Readable {
 			continue
@@ -66,9 +66,9 @@ func (s *ModelSerializer[Model]) ToRepresentation(intVal *models.InternalValue[M
 	return raw, nil
 }
 
-func (s *ModelSerializer[Model]) FromDB(raw map[string]interface{}) (*models.InternalValue[Model], error) {
+func (s *ModelSerializer[Model]) FromDB(raw map[string]any) (*models.InternalValue[Model], error) {
 
-	intVMap := make(map[string]interface{})
+	intVMap := make(map[string]any)
 	for k := range raw {
 		field, ok := s.Fields[k]
 		if !ok {
@@ -167,13 +167,13 @@ func NewModelSerializer[Model any](ftm *types.FieldTypeMapper) *ModelSerializer[
 }
 
 func ConvertFuncToRepresentationFuncAdapter[Model any](cf types.ConvertFunc) fields.RepresentationFunc[Model] {
-	return func(intVal *models.InternalValue[Model], name string) (interface{}, error) {
+	return func(intVal *models.InternalValue[Model], name string) (any, error) {
 		return cf(intVal.Map[name])
 	}
 }
 
 func ConvertFuncToInternalValueFuncAdapter(cf types.ConvertFunc) fields.InternalValueFunc {
-	return func(reprModel map[string]interface{}, name string) (interface{}, error) {
+	return func(reprModel map[string]any, name string) (any, error) {
 		return cf(reprModel[name])
 	}
 }

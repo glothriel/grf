@@ -73,7 +73,7 @@ func main() {
 func getTypeMapper() *types.FieldTypeMapper {
 	mapper := types.DefaultFieldTypeMapper()
 	mapper.Register("decimal.Decimal", types.FieldType{
-		InternalToResponse: func(v interface{}) (interface{}, error) {
+		InternalToResponse: func(v any) (any, error) {
 			decimalV, ok := v.(decimal.Decimal)
 			if ok {
 				return decimalV.String(), nil
@@ -84,7 +84,7 @@ func getTypeMapper() *types.FieldTypeMapper {
 			}
 			return nil, fmt.Errorf("Expected %s to be a decimal or a string, got %T", v, v)
 		},
-		RequestToInternal: func(v interface{}) (interface{}, error) {
+		RequestToInternal: func(v any) (any, error) {
 			decimalStr, ok := v.(string)
 			if !ok {
 				return nil, fmt.Errorf("Expected %s to be a string", v)
@@ -93,10 +93,10 @@ func getTypeMapper() *types.FieldTypeMapper {
 		},
 	})
 	mapper.Register("uuid.UUID", types.FieldType{
-		InternalToResponse: func(v interface{}) (interface{}, error) {
+		InternalToResponse: func(v any) (any, error) {
 			return v, nil
 		},
-		RequestToInternal: func(v interface{}) (interface{}, error) {
+		RequestToInternal: func(v any) (any, error) {
 			theUUID, ok := v.(string)
 			if !ok {
 				return nil, fmt.Errorf("Expected %s to be a string", v)

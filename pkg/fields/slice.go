@@ -10,11 +10,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type SliceField[T any, Model any] []T
+// SliceModelField is a field that represents a slice of any type
+type SliceModelField[T any, Model any] []T
 
-// integers need to be defined as SliceOfItems[float64] because of the way that json.Unmarshal works
-// this doesn't work for maps e.g SliceOfItems[map[string]string]
-func (s SliceField[T, M]) Update(f *Field[M]) {
+// Update implements serializer.FieldUpdater interface, and decorates original field to
+// correctly parse types of slice items
+func (s SliceModelField[T, M]) Update(f *Field[M]) {
 	previousValueFunc := f.InternalValueFunc
 	var collectionItem T
 	var m M
@@ -27,12 +28,12 @@ func (s SliceField[T, M]) Update(f *Field[M]) {
 		)
 	}
 
-	f.InternalValueFunc = func(rawMap map[string]interface{}, key string) (interface{}, error) {
+	f.InternalValueFunc = func(rawMap map[string]any, key string) (any, error) {
 		rawValue, err := previousValueFunc(rawMap, key)
 		if err != nil {
 			return nil, err
 		}
-		rawValueSlice, ok := rawValue.([]interface{})
+		rawValueSlice, ok := rawValue.([]any)
 		if !ok {
 			return nil, errors.New("Should be a collection")
 		}
@@ -49,20 +50,20 @@ func (s SliceField[T, M]) Update(f *Field[M]) {
 }
 
 // Scan scan value into Jsonb, implements sql.Scanner interface
-func (s *SliceField[T, M]) Scan(value interface{}) error {
+func (s *SliceModelField[T, M]) Scan(value any) error {
 	bytes, ok := value.([]byte)
 	if !ok {
 		return errors.New(fmt.Sprint("Failed to unmarshal JSONB value:", value))
 	}
 
-	result := SliceField[T, M]{}
+	result := SliceModelField[T, M]{}
 	err := json.Unmarshal(bytes, &result)
 	*s = result
 	return err
 }
 
 // Value return json value, implement driver.Valuer interface
-func (s SliceField[T, M]) Value() (driver.Value, error) {
+func (s SliceModelField[T, M]) Value() (driver.Value, error) {
 	if len(s) == 0 {
 		return nil, nil
 	}

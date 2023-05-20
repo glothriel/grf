@@ -11,6 +11,6 @@ func (p *NoPagination) Apply(_ *gin.Context, db *gorm.DB) *gorm.DB {
 	return db
 }
 
-func (p *NoPagination) Format(entities []interface{}) (interface{}, error) {
+func (p *NoPagination) Format(entities []any) (any, error) {
 	return entities, nil
 }

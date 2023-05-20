@@ -15,7 +15,7 @@ type ValidatingSerializer[Model any] struct {
 	Validators []Validator[Model]
 }
 
-func (s *ValidatingSerializer[Model]) ToInternalValue(raw map[string]interface{}) (*models.InternalValue[Model], error) {
+func (s *ValidatingSerializer[Model]) ToInternalValue(raw map[string]any) (*models.InternalValue[Model], error) {
 	intVal, err := s.child.ToInternalValue(raw)
 	if err != nil {
 		return intVal, err
@@ -23,11 +23,11 @@ func (s *ValidatingSerializer[Model]) ToInternalValue(raw map[string]interface{}
 	return intVal, s.Validate(intVal)
 }
 
-func (s *ValidatingSerializer[Model]) ToRepresentation(intVal *models.InternalValue[Model]) (map[string]interface{}, error) {
+func (s *ValidatingSerializer[Model]) ToRepresentation(intVal *models.InternalValue[Model]) (map[string]any, error) {
 	return s.child.ToRepresentation(intVal)
 }
 
-func (s *ValidatingSerializer[Model]) FromDB(raw map[string]interface{}) (*models.InternalValue[Model], error) {
+func (s *ValidatingSerializer[Model]) FromDB(raw map[string]any) (*models.InternalValue[Model], error) {
 	intVal, err := s.child.FromDB(raw)
 	if err != nil {
 		return intVal, err
@@ -70,7 +70,7 @@ type GookitValidator[Model any] struct {
 type GookitRule struct {
 	Fields    string
 	Validator string
-	Args      []interface{}
+	Args      []any
 }
 
 func (v *GookitValidator[Model]) Validate(intVal *models.InternalValue[Model]) error {
@@ -85,7 +85,7 @@ func (v *GookitValidator[Model]) Validate(intVal *models.InternalValue[Model]) e
 	return val.ValidateE().ErrOrNil()
 }
 
-func (v *GookitValidator[Model]) WithRule(Fields, Validator string, Args ...interface{}) *GookitValidator[Model] {
+func (v *GookitValidator[Model]) WithRule(Fields, Validator string, Args ...any) *GookitValidator[Model] {
 	v.Rules = append(v.Rules, GookitRule{Fields, Validator, Args})
 	return v
 }

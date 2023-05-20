@@ -195,12 +195,12 @@ func NewRetrieveUpdateDeleteModelView[Model any](path string, db *gorm.DB) *Mode
 
 func ListModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var entities []map[string]interface{}
+		var entities []map[string]any
 		modelCtx.Pagination.Apply(
 			ctx,
 			modelCtx.OrderBy(ctx, modelCtx.Filter(ctx, modelCtx.DBSession())),
 		).Find(&entities)
-		rawElements := []interface{}{}
+		rawElements := []any{}
 		effectiveSerializer := modelCtx.ListSerializer
 		if effectiveSerializer == nil {
 			effectiveSerializer = modelCtx.Serializer
@@ -229,7 +229,7 @@ func ListModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFunc 
 
 func CreateModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var rawElement map[string]interface{}
+		var rawElement map[string]any
 		if err := ctx.ShouldBindJSON(&rawElement); err != nil {
 			ctx.JSON(400, gin.H{
 				"message": err.Error(),
@@ -306,7 +306,7 @@ func RetrieveModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerF
 
 func UpdateModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var updates map[string]interface{}
+		var updates map[string]any
 		if err := ctx.ShouldBindJSON(&updates); err != nil {
 			ctx.JSON(400, gin.H{
 				"message": err.Error(),
@@ -346,7 +346,7 @@ func UpdateModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFun
 			WriteError(ctx, updateErr)
 			return
 		}
-		var updatedMap map[string]interface{}
+		var updatedMap map[string]any
 		if err := modelCtx.Filter(ctx, modelCtx.DBSession().First(&updatedMap, "id = ?", ctx.Param("id"))).Error; err != nil {
 			ctx.JSON(404, gin.H{
 				"message": err.Error(),

@@ -25,10 +25,10 @@ func (base *BaseModel) BeforeCreate(tx *gorm.DB) error {
 }
 
 type InternalValue[Model any] struct {
-	Map map[string]interface{}
+	Map map[string]any
 }
 
-func (i *InternalValue[Model]) Fields() (map[string]interface{}, error) {
+func (i *InternalValue[Model]) Fields() (map[string]any, error) {
 	return i.Map, nil
 }
 
@@ -55,7 +55,7 @@ func (i *InternalValue[Model]) AsModel() (Model, error) {
 
 // function that converts a map to a struct using reflection without mapstructure
 // use json keys as struct field names
-func MapToStruct[Model any](m map[string]interface{}) (Model, error) {
+func MapToStruct[Model any](m map[string]any) (Model, error) {
 	var entity Model
 	jsonTagsToFieldNames := map[string]string{}
 	t := reflect.TypeOf(entity)
@@ -77,7 +77,7 @@ func MapToStruct[Model any](m map[string]interface{}) (Model, error) {
 // could use mapstructure, but it does a deep translation, which is not what we want.
 func InternalValueFromModel[Model any](entity Model) (*InternalValue[Model], error) {
 	v := reflect.ValueOf(entity)
-	out := make(map[string]interface{})
+	out := make(map[string]any)
 	fields := reflect.VisibleFields(reflect.TypeOf(entity))
 	for _, field := range fields {
 		if !field.Anonymous {

@@ -9,8 +9,8 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type RepresentationFunc[Model any] func(*models.InternalValue[Model], string) (interface{}, error)
-type InternalValueFunc func(map[string]interface{}, string) (interface{}, error)
+type RepresentationFunc[Model any] func(*models.InternalValue[Model], string) (any, error)
+type InternalValueFunc func(map[string]any, string) (any, error)
 
 type Field[Model any] struct {
 	ItsName            string
@@ -25,15 +25,15 @@ func (s *Field[Model]) Name() string {
 	return s.ItsName
 }
 
-func (s *Field[Model]) ToRepresentation(intVal *models.InternalValue[Model]) (interface{}, error) {
+func (s *Field[Model]) ToRepresentation(intVal *models.InternalValue[Model]) (any, error) {
 	return s.RepresentationFunc(intVal, s.ItsName)
 }
 
-func (s *Field[Model]) ToInternalValue(reprModel map[string]interface{}) (interface{}, error) {
+func (s *Field[Model]) ToInternalValue(reprModel map[string]any) (any, error) {
 	return s.InternalValueFunc(reprModel, s.ItsName)
 }
 
-func (s *Field[Model]) FromDB(reprModel map[string]interface{}) (interface{}, error) {
+func (s *Field[Model]) FromDB(reprModel map[string]any) (any, error) {
 	return s.FromDBFunc(reprModel, s.ItsName)
 }
 
@@ -73,7 +73,7 @@ func (s *Field[Model]) WithFromDBFunc(f InternalValueFunc) *Field[Model] {
 func NewField[Model any](name string) *Field[Model] {
 	return &Field[Model]{
 		ItsName: name,
-		RepresentationFunc: func(intVal *models.InternalValue[Model], name string) (interface{}, error) {
+		RepresentationFunc: func(intVal *models.InternalValue[Model], name string) (any, error) {
 			return intVal.Map[name], nil
 		},
 		FromDBFunc:        TrySQLScannerOrPassthrough[Model](),
@@ -84,12 +84,12 @@ func NewField[Model any](name string) *Field[Model] {
 }
 
 func InternalValuePassthrough() InternalValueFunc {
-	return func(reprModel map[string]interface{}, name string) (interface{}, error) {
+	return func(reprModel map[string]any, name string) (any, error) {
 		return reprModel[name], nil
 	}
 }
 
-func TrySQLScannerOrPassthrough[Model any]() func(map[string]interface{}, string) (interface{}, error) {
+func TrySQLScannerOrPassthrough[Model any]() func(map[string]any, string) (any, error) {
 	var entity Model
 	jsonTagsToFieldNames := map[string]string{}
 	for _, field := range reflect.VisibleFields(reflect.TypeOf(entity)) {
@@ -106,7 +106,7 @@ func TrySQLScannerOrPassthrough[Model any]() func(map[string]interface{}, string
 		fieldBlueprints[fieldName] = ttype
 	}
 
-	return func(reprModel map[string]interface{}, name string) (interface{}, error) {
+	return func(reprModel map[string]any, name string) (any, error) {
 		reflectedInstance := reflect.New(fieldBlueprints[name])
 
 		var realFieldValue any

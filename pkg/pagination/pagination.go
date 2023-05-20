@@ -7,5 +7,5 @@ import (
 
 type Pagination interface {
 	Apply(*gin.Context, *gorm.DB) *gorm.DB
-	Format([]interface{}) (interface{}, error)
+	Format([]any) (any, error)
 }

@@ -10,10 +10,10 @@ type MockModel struct{}
 
 func InternalValueCase[Model any, TestedType any](t *testing.T, passedValue any, expectedValue any) {
 	baseField := NewField[Model]("some_items")
-	field := SliceField[TestedType, Model]{}
+	field := SliceModelField[TestedType, Model]{}
 	field.Update(baseField)
 
-	internalValue, toInternalValueErr := baseField.ToInternalValue(map[string]interface{}{
+	internalValue, toInternalValueErr := baseField.ToInternalValue(map[string]any{
 		"some_items": passedValue,
 	})
 
@@ -22,18 +22,18 @@ func InternalValueCase[Model any, TestedType any](t *testing.T, passedValue any,
 }
 
 func TestSliceFieldToInternalValue(t *testing.T) {
-	InternalValueCase[MockModel, string](t, []interface{}{"bar", "baz"}, []string{"bar", "baz"})
-	InternalValueCase[MockModel, float64](t, []interface{}{1.0, 2.2}, []float64{1.0, 2.2})
+	InternalValueCase[MockModel, string](t, []any{"bar", "baz"}, []string{"bar", "baz"})
+	InternalValueCase[MockModel, float64](t, []any{1.0, 2.2}, []float64{1.0, 2.2})
 	InternalValueCase[MockModel, map[string]string](
 		t,
-		[]interface{}{map[string]string{"foo": "bar"}},
+		[]any{map[string]string{"foo": "bar"}},
 		[]map[string]string{{"foo": "bar"}},
 	)
 }
 
 func TestSliceFieldNotACollection(t *testing.T) {
-	var interf interface{}
-	for _, invalidTypeVar := range []interface{}{
+	var interf any
+	for _, invalidTypeVar := range []any{
 		interf,
 		"foo",
 		map[string]any{},
@@ -43,10 +43,10 @@ func TestSliceFieldNotACollection(t *testing.T) {
 		true,
 	} {
 		baseField := NewField[MockModel]("some_items")
-		field := SliceField[string, MockModel]{}
+		field := SliceModelField[string, MockModel]{}
 		field.Update(baseField)
 
-		_, toInternalValueErr := baseField.ToInternalValue(map[string]interface{}{
+		_, toInternalValueErr := baseField.ToInternalValue(map[string]any{
 			"some_items": invalidTypeVar,
 		})
 
@@ -56,10 +56,10 @@ func TestSliceFieldNotACollection(t *testing.T) {
 
 func TestSliceFieldOneOfCollectionItemsInvalidType(t *testing.T) {
 	baseField := NewField[MockModel]("some_items")
-	field := SliceField[float64, MockModel]{}
+	field := SliceModelField[float64, MockModel]{}
 	field.Update(baseField)
 
-	_, toInternalValueErr := baseField.ToInternalValue(map[string]interface{}{
+	_, toInternalValueErr := baseField.ToInternalValue(map[string]any{
 		"some_items": []any{1.0, 1.2, "foo"},
 	})
 
