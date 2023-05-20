@@ -6,7 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type MockModel struct{}
+type MockModel struct {
+	SomeItems []any `json:"some_items" gorm:"type:text"`
+}
 
 func InternalValueCase[Model any, TestedType any](t *testing.T, passedValue any, expectedValue any) {
 	baseField := NewField[Model]("some_items")
