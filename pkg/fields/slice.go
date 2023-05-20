@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 )
@@ -23,6 +24,22 @@ func (s SliceModelField[T, M]) Update(f *Field[M]) {
 	if typeName == "int" {
 		logrus.Fatalf(
 			`%s.%s: SliceField does not support int, because JSON "number" type. Use float64 instead`,
+			reflect.TypeOf(m).String(),
+			f.ItsName,
+		)
+	}
+	structField, structFieldErr := StructAttributeByJSONTag(m, f.ItsName)
+	if structFieldErr != nil {
+		logrus.Fatalf(
+			`%s.%s: %s`,
+			reflect.TypeOf(m).String(),
+			f.ItsName,
+			structFieldErr.Error(),
+		)
+	}
+	if structField.Tag.Get("gorm") == "" || !strings.Contains(structField.Tag.Get("gorm"), "type:text") {
+		logrus.Fatalf(
+			"%s.%s: SliceField should be used with `gorm:\"type:text\"` tag",
 			reflect.TypeOf(m).String(),
 			f.ItsName,
 		)

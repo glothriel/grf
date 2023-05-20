@@ -14,11 +14,6 @@ import (
 	"gorm.io/gorm"
 )
 
-type Foo struct {
-	Bla string
-	Goo int
-}
-
 type SDGConfig struct {
 	models.BaseModel
 
@@ -41,9 +36,6 @@ func main() {
 		panic("failed to connect database")
 	}
 
-	if migrateErr := db.AutoMigrate(&SDGConfig{}); migrateErr != nil {
-		logrus.Fatalf("Error migrating database: %s", migrateErr)
-	}
 	serializer := serializers.NewValidatingSerializer[SDGConfig](
 		serializers.NewModelSerializer[SDGConfig](nil)).WithValidator(
 		&serializers.GoPlaygroundValidator[SDGConfig]{},
@@ -63,6 +55,10 @@ func main() {
 	views.NewRetrieveUpdateDeleteModelView[SDGConfig]("/sdg/:id", db).WithSerializer(
 		serializer,
 	).Register(router)
+
+	if migrateErr := db.AutoMigrate(&SDGConfig{}); migrateErr != nil {
+		logrus.Fatalf("Error migrating database: %s", migrateErr)
+	}
 
 	logrus.Fatal(router.Run(fmt.Sprintf(":%d", *serverPort)))
 }
