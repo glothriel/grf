@@ -1,6 +1,7 @@
 package serializers
 
 import (
+	"encoding"
 	"fmt"
 	"reflect"
 	"strings"
@@ -111,17 +112,17 @@ func (s *ModelSerializer[Model]) WithExistingFields(passedFields []string) *Mode
 	for _, field := range passedFields {
 		attributeType, ok := attributeTypes[field]
 		if !ok {
-			logrus.Fatalf("Could not find field `%s` on model `%s` when registering serializer field", field, reflect.TypeOf(m))
+			logrus.Fatalf("Could not find field `%s` on model `%s` when registering serializer fields", field, reflect.TypeOf(m))
 		}
 		toRepresentation, toRepresentationErr := s.FieldTypeMapper.ToRepresentation(attributeType)
 		if toRepresentationErr != nil {
 			logrus.Debugf("Could not determine representation of field `%s` on model `%s`: %s", field, reflect.TypeOf(m), toRepresentationErr)
-			toRepresentation = types.ConvertPassThrough
+			toRepresentation = EncodingAwareToRepresentation[Model](field)
 		}
 		toInternalValue, toInternalValueErr := s.FieldTypeMapper.ToInternalValue(attributeType)
 		if toInternalValueErr != nil {
 			logrus.Debugf("Could not determine internal value of field `%s` on model `%s`: %s", field, reflect.TypeOf(m), toInternalValueErr)
-			toInternalValue = types.ConvertPassThrough
+			toInternalValue = EncodingAwareToInternalValue[Model](field)
 		}
 		s.Fields[field] = fields.NewField[Model](
 			field,
@@ -131,13 +132,14 @@ func (s *ModelSerializer[Model]) WithExistingFields(passedFields []string) *Mode
 			ConvertFuncToInternalValueFuncAdapter(toInternalValue),
 		)
 	}
-	fields := reflect.VisibleFields(reflect.TypeOf(m))
+	modelAttrs := reflect.VisibleFields(reflect.TypeOf(m))
 	v := reflect.ValueOf(m)
-	for _, field := range fields {
-		if !field.Anonymous {
-			updater, ok := v.FieldByName(field.Name).Interface().(FieldUpdater[Model])
+	for _, attr := range modelAttrs {
+		if !attr.Anonymous {
+			updater, ok := v.FieldByName(attr.Name).Interface().(FieldUpdater[Model])
 			if ok {
-				updater.Update(s.Fields[field.Tag.Get("json")])
+				updater.Update(s.Fields[attr.Tag.Get("json")])
+				continue
 			}
 		}
 	}
@@ -188,4 +190,81 @@ func DetectAttributes[Model any](model Model) map[string]string {
 		}
 	}
 	return ret
+}
+
+func EncodingAwareToInternalValue[Model any](fieldName string) types.ConvertFunc {
+	settings := getFieldSettings[Model](fieldName)
+	if settings == nil {
+		var entity Model
+		logrus.Fatalf("Could not find field `%s` on model `%s`", fieldName, reflect.TypeOf(entity))
+	}
+	return func(v any) (any, error) {
+		var realFieldValue any = reflect.New(settings.itsType).Interface()
+		vStr, ok := v.(string)
+		if ok {
+			if settings.isEncodingTextUnmarshaler {
+				fv := realFieldValue.(encoding.TextUnmarshaler)
+				unmarshalErr := fv.UnmarshalText([]byte(vStr))
+				return fv, unmarshalErr
+			} else {
+				return types.ConvertPassThrough(v)
+			}
+		}
+
+		return types.ConvertPassThrough(v)
+	}
+}
+
+func EncodingAwareToRepresentation[Model any](fieldName string) types.ConvertFunc {
+	settings := getFieldSettings[Model](fieldName)
+	if settings == nil {
+		var entity Model
+		logrus.Fatalf("Could not find field `%s` on model `%s`", fieldName, reflect.TypeOf(entity))
+	}
+	return func(v any) (any, error) {
+		if settings.isEncodingTextMarshaler {
+			marshalledBytes, marshallErr := v.(encoding.TextMarshaler).MarshalText()
+			if marshallErr != nil {
+				return nil, marshallErr
+			}
+			return string(marshalledBytes), nil
+		}
+		return types.ConvertPassThrough(v)
+	}
+}
+
+type fieldSettings struct {
+	itsType                      reflect.Type
+	isEncodingTextMarshaler      bool
+	isPtrEncodingTextMarshaler   bool
+	isEncodingTextUnmarshaler    bool
+	isPtrEncodingTextUnmarshaler bool
+}
+
+func getFieldSettings[Model any](fieldName string) *fieldSettings {
+	var entity Model
+	var settings *fieldSettings
+	for _, field := range reflect.VisibleFields(reflect.TypeOf(entity)) {
+		jsonTag := field.Tag.Get("json")
+		if jsonTag == fieldName {
+			var theTypeAsAny any
+			reflectedInstance := reflect.New(reflect.TypeOf(reflect.ValueOf(entity).FieldByName(field.Name).Interface())).Elem()
+			if reflectedInstance.CanAddr() {
+				theTypeAsAny = reflectedInstance.Addr().Interface()
+			} else {
+				theTypeAsAny = reflectedInstance.Interface()
+			}
+
+			_, isEncodingTextMarshaler := theTypeAsAny.(encoding.TextMarshaler)
+			_, isEncodingTextUnmarshaler := theTypeAsAny.(encoding.TextUnmarshaler)
+			settings = &fieldSettings{
+				itsType: reflect.TypeOf(
+					reflectedInstance.Interface(),
+				),
+				isEncodingTextMarshaler:   isEncodingTextMarshaler,
+				isEncodingTextUnmarshaler: isEncodingTextUnmarshaler,
+			}
+		}
+	}
+	return settings
 }

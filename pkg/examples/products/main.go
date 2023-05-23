@@ -7,10 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/gin-rest-framework/pkg/models"
 	"github.com/glothriel/gin-rest-framework/pkg/serializers"
-	"github.com/glothriel/gin-rest-framework/pkg/types"
 	"github.com/glothriel/gin-rest-framework/pkg/views"
 
-	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 	"gorm.io/driver/sqlite"
@@ -36,23 +34,19 @@ func main() {
 		panic("failed to connect database")
 	}
 
-	mapper := getTypeMapper()
-
 	if migrateErr := db.AutoMigrate(&Product{}); migrateErr != nil {
 		logrus.Fatalf("Error migrating database: %s", migrateErr)
 	}
 	serializer := serializers.NewValidatingSerializer[Product](
-		serializers.NewModelSerializer[Product](mapper),
+		serializers.NewModelSerializer[Product](nil),
 	).WithValidator(
 		&serializers.GoPlaygroundValidator[Product]{},
 	)
 
-	views.NewListCreateModelView[Product]("/products", db).WithFieldTypeMapper(
-		mapper,
-	).WithSerializer(
+	views.NewListCreateModelView[Product]("/products", db).WithSerializer(
 		serializer,
 	).WithListSerializer(
-		serializers.NewModelSerializer[Product](mapper).
+		serializers.NewModelSerializer[Product](nil).
 			WithExistingFields([]string{"id", "name"}),
 	).WithFilter(
 		func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
@@ -63,46 +57,9 @@ func main() {
 		},
 	).WithOrderBy("name ASC").Register(router)
 
-	views.NewRetrieveUpdateDeleteModelView[Product]("/products/:id", db).WithFieldTypeMapper(mapper).WithSerializer(
+	views.NewRetrieveUpdateDeleteModelView[Product]("/products/:id", db).WithSerializer(
 		serializer,
 	).Register(router)
 
 	logrus.Fatal(router.Run(fmt.Sprintf(":%d", *serverPort)))
-}
-
-func getTypeMapper() *types.FieldTypeMapper {
-	mapper := types.DefaultFieldTypeMapper()
-	mapper.Register("decimal.Decimal", types.FieldType{
-		InternalToResponse: func(v any) (any, error) {
-			decimalV, ok := v.(decimal.Decimal)
-			if ok {
-				return decimalV.String(), nil
-			}
-			stringV, ok := v.(string)
-			if ok {
-				return stringV, nil
-			}
-			return nil, fmt.Errorf("Expected %s to be a decimal or a string, got %T", v, v)
-		},
-		RequestToInternal: func(v any) (any, error) {
-			decimalStr, ok := v.(string)
-			if !ok {
-				return nil, fmt.Errorf("Expected %s to be a string", v)
-			}
-			return decimal.NewFromString(decimalStr)
-		},
-	})
-	mapper.Register("uuid.UUID", types.FieldType{
-		InternalToResponse: func(v any) (any, error) {
-			return v, nil
-		},
-		RequestToInternal: func(v any) (any, error) {
-			theUUID, ok := v.(string)
-			if !ok {
-				return nil, fmt.Errorf("Expected %s to be a string", v)
-			}
-			return uuid.Parse(theUUID)
-		},
-	})
-	return mapper
 }

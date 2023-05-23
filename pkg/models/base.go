@@ -42,9 +42,9 @@ func (i InternalValue[Model]) AsModel() (Model, error) {
 	}
 	decodeErr := decoder.Decode(i)
 	if decodeErr != nil {
-		logrus.Errorf("Type of the error is %T", decodeErr)
+		logrus.Debug(i)
 		return entity, fmt.Errorf(
-			"Failed to convert internal value `%v` to model: %w", i, decodeErr,
+			"Failed to convert internal value to model `%T`: Mapstructure error: %w", entity, decodeErr,
 		)
 	}
 	return entity, nil

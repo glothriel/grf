@@ -1,6 +1,8 @@
 package views
 
 import (
+	"fmt"
+
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/gin-rest-framework/pkg/authentication"
 	"github.com/glothriel/gin-rest-framework/pkg/models"
@@ -313,6 +315,7 @@ func UpdateModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFun
 			})
 			return
 		}
+		updates["id"] = ctx.Param("id")
 		effectiveSerializer := modelCtx.UpdateSerializer
 		if effectiveSerializer == nil {
 			effectiveSerializer = modelCtx.Serializer
@@ -322,20 +325,7 @@ func UpdateModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFun
 			WriteError(ctx, fromRawErr)
 			return
 		}
-		intVal["id"] = ctx.Param("id")
-		idIVFunc, intValErr := modelCtx.FieldTypeMapper.ToInternalValue(
-			modelCtx.FieldTypes["id"],
-		)
-		if intValErr != nil {
-			WriteError(ctx, intValErr)
-			return
-		}
-		internalID, iDErr := idIVFunc(intVal["id"])
-		if iDErr != nil {
-			WriteError(ctx, iDErr)
-			return
-		}
-		intVal["id"] = internalID
+		fmt.Println(intVal)
 		entity, asModelErr := intVal.AsModel()
 		if asModelErr != nil {
 			WriteError(ctx, asModelErr)
@@ -353,7 +343,12 @@ func UpdateModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFun
 			})
 			return
 		}
-		rawElement, toRawErr := effectiveSerializer.ToRepresentation(updatedMap)
+		internalValue, internalValueErr := effectiveSerializer.FromDB(updatedMap)
+		if internalValueErr != nil {
+			WriteError(ctx, internalValueErr)
+			return
+		}
+		rawElement, toRawErr := effectiveSerializer.ToRepresentation(internalValue)
 		if toRawErr != nil {
 			ctx.JSON(500, gin.H{
 				"message": toRawErr.Error(),
