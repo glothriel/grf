@@ -85,7 +85,7 @@ def test_create_success(server_factory):
             },
         )
         assert strip_created_updated_at(response.json()) == {
-            "id": AnyUUID(),  
+            "id": AnyUUID(),
             "name": "foo",
             "description": "bar",
             "price": "0",
