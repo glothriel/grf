@@ -322,7 +322,7 @@ func UpdateModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFun
 			WriteError(ctx, fromRawErr)
 			return
 		}
-		intVal.Map["id"] = ctx.Param("id")
+		intVal["id"] = ctx.Param("id")
 		idIVFunc, intValErr := modelCtx.FieldTypeMapper.ToInternalValue(
 			modelCtx.FieldTypes["id"],
 		)
@@ -330,12 +330,12 @@ func UpdateModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFun
 			WriteError(ctx, intValErr)
 			return
 		}
-		internalID, iDErr := idIVFunc(intVal.Map["id"])
+		internalID, iDErr := idIVFunc(intVal["id"])
 		if iDErr != nil {
 			WriteError(ctx, iDErr)
 			return
 		}
-		intVal.Map["id"] = internalID
+		intVal["id"] = internalID
 		entity, asModelErr := intVal.AsModel()
 		if asModelErr != nil {
 			WriteError(ctx, asModelErr)
@@ -347,13 +347,13 @@ func UpdateModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFun
 			return
 		}
 		var updatedMap map[string]any
-		if err := modelCtx.Filter(ctx, modelCtx.DBSession().First(&updatedMap, "id = ?", ctx.Param("id"))).Error; err != nil {
+		if err := modelCtx.DBSession().First(&updatedMap, "id = ?", ctx.Param("id")).Error; err != nil {
 			ctx.JSON(404, gin.H{
 				"message": err.Error(),
 			})
 			return
 		}
-		rawElement, toRawErr := effectiveSerializer.ToRepresentation(&models.InternalValue[Model]{Map: updatedMap})
+		rawElement, toRawErr := effectiveSerializer.ToRepresentation(updatedMap)
 		if toRawErr != nil {
 			ctx.JSON(500, gin.H{
 				"message": toRawErr.Error(),

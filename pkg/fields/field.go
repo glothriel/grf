@@ -9,7 +9,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type RepresentationFunc[Model any] func(*models.InternalValue[Model], string) (any, error)
+type RepresentationFunc[Model any] func(models.InternalValue[Model], string) (any, error)
 type InternalValueFunc func(map[string]any, string) (any, error)
 
 type Field[Model any] struct {
@@ -25,7 +25,7 @@ func (s *Field[Model]) Name() string {
 	return s.ItsName
 }
 
-func (s *Field[Model]) ToRepresentation(intVal *models.InternalValue[Model]) (any, error) {
+func (s *Field[Model]) ToRepresentation(intVal models.InternalValue[Model]) (any, error) {
 	return s.RepresentationFunc(intVal, s.ItsName)
 }
 
@@ -73,8 +73,8 @@ func (s *Field[Model]) WithFromDBFunc(f InternalValueFunc) *Field[Model] {
 func NewField[Model any](name string) *Field[Model] {
 	return &Field[Model]{
 		ItsName: name,
-		RepresentationFunc: func(intVal *models.InternalValue[Model], name string) (any, error) {
-			return intVal.Map[name], nil
+		RepresentationFunc: func(intVal models.InternalValue[Model], name string) (any, error) {
+			return intVal[name], nil
 		},
 		FromDBFunc:        TrySQLScannerOrPassthrough[Model](),
 		InternalValueFunc: InternalValuePassthrough(),

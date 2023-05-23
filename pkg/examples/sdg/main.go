@@ -20,6 +20,7 @@ type SDGConfig struct {
 	Enabled     bool   `json:"enabled" validate:"required"`
 	Integration string `json:"integration" gorm:"type:text;column:integration" validate:"required"` // FIXME enum
 	ApiKey      string `json:"api_key" gorm:"column:api_key" validate:"required"`
+
 	// go-playground validator doesn't support bools - workaround is to remove required and set default value
 	UrlFilter   bool                                      `json:"url_filter" gorm:"default:false"`
 	UrlContains fields.SliceModelField[string, SDGConfig] `json:"url_contains" gorm:"type:text"`

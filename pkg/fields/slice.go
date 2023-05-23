@@ -20,7 +20,13 @@ func (s SliceModelField[T, M]) Update(f *Field[M]) {
 	previousValueFunc := f.InternalValueFunc
 	var collectionItem T
 	var m M
-	typeName := reflect.TypeOf(collectionItem).String()
+	var typeName string
+
+	if !reflect.ValueOf(collectionItem).IsValid() {
+		typeName = "any"
+	} else {
+		typeName = reflect.TypeOf(collectionItem).String()
+	}
 	if typeName == "int" {
 		logrus.Fatalf(
 			`%s.%s: SliceField does not support int, because JSON "number" type. Use float64 instead`,

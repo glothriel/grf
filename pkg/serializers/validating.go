@@ -15,7 +15,7 @@ type ValidatingSerializer[Model any] struct {
 	Validators []Validator[Model]
 }
 
-func (s *ValidatingSerializer[Model]) ToInternalValue(raw map[string]any) (*models.InternalValue[Model], error) {
+func (s *ValidatingSerializer[Model]) ToInternalValue(raw map[string]any) (models.InternalValue[Model], error) {
 	intVal, err := s.child.ToInternalValue(raw)
 	if err != nil {
 		return intVal, err
@@ -23,11 +23,11 @@ func (s *ValidatingSerializer[Model]) ToInternalValue(raw map[string]any) (*mode
 	return intVal, s.Validate(intVal)
 }
 
-func (s *ValidatingSerializer[Model]) ToRepresentation(intVal *models.InternalValue[Model]) (map[string]any, error) {
+func (s *ValidatingSerializer[Model]) ToRepresentation(intVal models.InternalValue[Model]) (map[string]any, error) {
 	return s.child.ToRepresentation(intVal)
 }
 
-func (s *ValidatingSerializer[Model]) FromDB(raw map[string]any) (*models.InternalValue[Model], error) {
+func (s *ValidatingSerializer[Model]) FromDB(raw map[string]any) (models.InternalValue[Model], error) {
 	intVal, err := s.child.FromDB(raw)
 	if err != nil {
 		return intVal, err
@@ -35,7 +35,7 @@ func (s *ValidatingSerializer[Model]) FromDB(raw map[string]any) (*models.Intern
 	return intVal, nil
 }
 
-func (s *ValidatingSerializer[Model]) Validate(intVal *models.InternalValue[Model]) error {
+func (s *ValidatingSerializer[Model]) Validate(intVal models.InternalValue[Model]) error {
 	errors := make([]error, 0)
 	for _, validator := range s.Validators {
 		err := validator.Validate(intVal)
@@ -59,7 +59,7 @@ func NewValidatingSerializer[Model any](child Serializer[Model]) *ValidatingSeri
 }
 
 type Validator[Model any] interface {
-	Validate(*models.InternalValue[Model]) error
+	Validate(models.InternalValue[Model]) error
 }
 
 type GookitValidator[Model any] struct {
@@ -73,7 +73,7 @@ type GookitRule struct {
 	Args      []any
 }
 
-func (v *GookitValidator[Model]) Validate(intVal *models.InternalValue[Model]) error {
+func (v *GookitValidator[Model]) Validate(intVal models.InternalValue[Model]) error {
 	entity, asModelErr := intVal.AsModel()
 	if asModelErr != nil {
 		return asModelErr
@@ -96,7 +96,7 @@ func NewGoogkitValidator[Model any]() *GookitValidator[Model] {
 
 type GoPlaygroundValidator[Model any] struct{}
 
-func (v *GoPlaygroundValidator[Model]) Validate(intVal *models.InternalValue[Model]) error {
+func (v *GoPlaygroundValidator[Model]) Validate(intVal models.InternalValue[Model]) error {
 
 	entity, asModelErr := intVal.AsModel()
 	if asModelErr != nil {

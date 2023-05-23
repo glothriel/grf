@@ -31,6 +31,11 @@ func TestSliceFieldToInternalValue(t *testing.T) {
 		[]any{map[string]string{"foo": "bar"}},
 		[]map[string]string{{"foo": "bar"}},
 	)
+	InternalValueCase[MockModel, any](
+		t,
+		[]any{1.0, "foo", map[string]string{"foo": "bar"}},
+		[]any{1.0, "foo", map[string]string{"foo": "bar"}},
+	)
 }
 
 func TestSliceFieldNotACollection(t *testing.T) {
