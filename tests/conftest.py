@@ -75,11 +75,11 @@ class ServerFactory:
         try:
             base_url = f"http://localhost:{self.port}"
             waited_iterations = 0
-            while waited_iterations < 30:
+            while waited_iterations < 150:
                 try:
                     requests.get(f"{base_url}", timeout=3)
                 except requests.exceptions.ConnectionError:
-                    time.sleep(0.1)
+                    time.sleep(0.01)
                     waited_iterations += 1
                 else:
                     break

@@ -2,6 +2,7 @@ package types
 
 import (
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -58,10 +59,6 @@ func DefaultFieldTypeMapper() *FieldTypeMapper {
 		InternalToResponse: ConvertPassThroughWithTypeValidation[string],
 		RequestToInternal:  ConvertPassThroughWithTypeValidation[string],
 	}
-	registered["int"] = FieldType{
-		InternalToResponse: ConvertPassThroughWithTypeValidation[int],
-		RequestToInternal:  ConvertPassThroughWithTypeValidation[int],
-	}
 	registered["float64"] = FieldType{
 		InternalToResponse: ConvertPassThroughWithTypeValidation[float64],
 		RequestToInternal:  ConvertPassThroughWithTypeValidation[float64],
@@ -74,6 +71,20 @@ func DefaultFieldTypeMapper() *FieldTypeMapper {
 		InternalToResponse: ConvertPassThroughWithTypeValidation[time.Time],
 		RequestToInternal:  ConvertPassThroughWithTypeValidation[time.Time],
 	}
+	// int is a special case, because JSON only has float64, so we need to convert
+	for _, t := range []string{"int", "int8", "int16", "int32", "int64"} {
+		registered[t] = FieldType{
+			InternalToResponse: ConvertPassThrough,
+			RequestToInternal:  ConvertFloatToInt,
+		}
+	}
+	for _, t := range []string{"uint", "uint8", "uint16", "uint32", "uint64"} {
+		registered[t] = FieldType{
+			InternalToResponse: ConvertPassThrough,
+			RequestToInternal:  ConvertFloatToUint,
+		}
+	}
+
 	return &FieldTypeMapper{
 		Registered: registered,
 	}
@@ -91,4 +102,28 @@ func ConvertPassThroughWithTypeValidation[T any](in any) (any, error) {
 		return nil, fmt.Errorf("Expected type `%T`, got `%T`", t, in)
 	}
 	return in, nil
+}
+
+func ConvertFloatToInt(in any) (any, error) {
+	if f, ok := in.(float64); ok {
+		if math.Mod(f, 1) == 0 {
+			i := int(f)
+			return i, nil
+		} else {
+			return 0, fmt.Errorf("Value %f is not an integer", f)
+		}
+	}
+	return nil, fmt.Errorf("Expected type `float64`, got `%T`", in)
+}
+
+func ConvertFloatToUint(in any) (any, error) {
+	if f, ok := in.(float64); ok {
+		if math.Mod(f, 1) == 0 && f >= 0 {
+			i := int(f)
+			return i, nil
+		} else {
+			return 0, fmt.Errorf("Value %f is not an unsigned integer", f)
+		}
+	}
+	return nil, fmt.Errorf("Expected type `float64`, got `%T`", in)
 }
