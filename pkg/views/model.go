@@ -1,6 +1,8 @@
 package views
 
 import (
+	"fmt"
+
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/gin-rest-framework/pkg/authentication"
 	"github.com/glothriel/gin-rest-framework/pkg/models"
@@ -11,7 +13,17 @@ import (
 	"gorm.io/gorm"
 )
 
-type FilterFunc func(*gin.Context, *gorm.DB) *gorm.DB
+type QueryModFunc func(*gin.Context, *gorm.DB) *gorm.DB
+
+func QueryModPassThrough(ctx *gin.Context, db *gorm.DB) *gorm.DB {
+	return db
+}
+
+func QueryModOrderBy(order string) QueryModFunc {
+	return func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
+		return db.Order(order)
+	}
+}
 
 type ModelViewContext[Model any] struct {
 	Serializer serializers.Serializer[Model]
@@ -23,7 +35,8 @@ type ModelViewContext[Model any] struct {
 	DeleteSerializer   serializers.Serializer[Model]
 
 	Pagination      pagination.Pagination
-	Filter          FilterFunc
+	Filter          QueryModFunc
+	OrderBy         QueryModFunc
 	IDFunc          func(ModelViewContext[Model], *gin.Context) string
 	DB              *gorm.DB
 	FieldTypeMapper *types.FieldTypeMapper
@@ -39,7 +52,8 @@ func NewDefaultModelViewContext[Model any](DB *gorm.DB) ModelViewContext[Model] 
 	return ModelViewContext[Model]{
 		Serializer:      &serializers.MissingSerializer[Model]{},
 		Pagination:      &pagination.NoPagination{},
-		Filter:          func(ctx *gin.Context, db *gorm.DB) *gorm.DB { return db },
+		Filter:          QueryModPassThrough,
+		OrderBy:         QueryModPassThrough,
 		DB:              DB,
 		IDFunc:          IDFromQueryParamIDFunc[Model],
 		FieldTypeMapper: types.DefaultFieldTypeMapper(),
@@ -120,6 +134,11 @@ func (v *ModelView[Model]) WithFilter(filter func(*gin.Context, *gorm.DB) *gorm.
 	return v
 }
 
+func (v *ModelView[Model]) WithOrderBy(order string) *ModelView[Model] {
+	v.Context.OrderBy = QueryModOrderBy(order)
+	return v
+}
+
 func (v *ModelView[Model]) WithAuthentication(authenticator authentication.Authentication) *ModelView[Model] {
 	v.view.Authentication(authenticator)
 	return v
@@ -178,15 +197,18 @@ func NewRetrieveUpdateDeleteModelView[Model any](path string, db *gorm.DB) *Mode
 
 func ListModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var entities []Model
-		modelCtx.Pagination.Apply(ctx, modelCtx.Filter(ctx, modelCtx.DBSession())).Find(&entities)
-		rawElements := []interface{}{}
+		var entities []map[string]any
+		modelCtx.Pagination.Apply(
+			ctx,
+			modelCtx.OrderBy(ctx, modelCtx.Filter(ctx, modelCtx.DBSession())),
+		).Find(&entities)
+		rawElements := []any{}
 		effectiveSerializer := modelCtx.ListSerializer
 		if effectiveSerializer == nil {
 			effectiveSerializer = modelCtx.Serializer
 		}
 		for _, entity := range entities {
-			internalValue, internalValueErr := models.InternalValueFromModel(entity)
+			internalValue, internalValueErr := effectiveSerializer.FromDB(entity)
 			if internalValueErr != nil {
 				WriteError(ctx, internalValueErr)
 				return
@@ -209,7 +231,7 @@ func ListModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFunc 
 
 func CreateModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var rawElement map[string]interface{}
+		var rawElement map[string]any
 		if err := ctx.ShouldBindJSON(&rawElement); err != nil {
 			ctx.JSON(400, gin.H{
 				"message": err.Error(),
@@ -286,13 +308,14 @@ func RetrieveModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerF
 
 func UpdateModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var updates map[string]interface{}
+		var updates map[string]any
 		if err := ctx.ShouldBindJSON(&updates); err != nil {
 			ctx.JSON(400, gin.H{
 				"message": err.Error(),
 			})
 			return
 		}
+		updates["id"] = ctx.Param("id")
 		effectiveSerializer := modelCtx.UpdateSerializer
 		if effectiveSerializer == nil {
 			effectiveSerializer = modelCtx.Serializer
@@ -302,20 +325,7 @@ func UpdateModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFun
 			WriteError(ctx, fromRawErr)
 			return
 		}
-		intVal.Map["id"] = ctx.Param("id")
-		idIVFunc, intValErr := modelCtx.FieldTypeMapper.ToInternalValue(
-			modelCtx.FieldTypes["id"],
-		)
-		if intValErr != nil {
-			WriteError(ctx, intValErr)
-			return
-		}
-		internalID, iDErr := idIVFunc(intVal.Map["id"])
-		if iDErr != nil {
-			WriteError(ctx, iDErr)
-			return
-		}
-		intVal.Map["id"] = internalID
+		fmt.Println(intVal)
 		entity, asModelErr := intVal.AsModel()
 		if asModelErr != nil {
 			WriteError(ctx, asModelErr)
@@ -326,14 +336,19 @@ func UpdateModelView[Model any](modelCtx ModelViewContext[Model]) gin.HandlerFun
 			WriteError(ctx, updateErr)
 			return
 		}
-		var updatedMap map[string]interface{}
-		if err := modelCtx.Filter(ctx, modelCtx.DBSession().First(&updatedMap, "id = ?", ctx.Param("id"))).Error; err != nil {
+		var updatedMap map[string]any
+		if err := modelCtx.DBSession().First(&updatedMap, "id = ?", ctx.Param("id")).Error; err != nil {
 			ctx.JSON(404, gin.H{
 				"message": err.Error(),
 			})
 			return
 		}
-		rawElement, toRawErr := effectiveSerializer.ToRepresentation(&models.InternalValue[Model]{Map: updatedMap})
+		internalValue, internalValueErr := effectiveSerializer.FromDB(updatedMap)
+		if internalValueErr != nil {
+			WriteError(ctx, internalValueErr)
+			return
+		}
+		rawElement, toRawErr := effectiveSerializer.ToRepresentation(internalValue)
 		if toRawErr != nil {
 			ctx.JSON(500, gin.H{
 				"message": toRawErr.Error(),

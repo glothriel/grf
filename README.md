@@ -50,4 +50,5 @@ Other gunicorn flag variants had even lower performance.
 * ModelList ordering
 * ReadOnly and WriteOnly fields
 * richer context (ability to extract gin request data directly from Field)
+* more complex pagination implementations
 * docs

@@ -11,6 +11,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// InternalRepresentation is a type that is used to hold model data. We don't use structs,
+// because it would force heavy use of reflection, which is slow.
+
 // Base contains common columns for all tables.
 type BaseModel struct {
 	ID        uuid.UUID `gorm:"type:uuid;primary_key;" json:"id"`
@@ -24,15 +27,9 @@ func (base *BaseModel) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-type InternalValue[Model any] struct {
-	Map map[string]interface{}
-}
+type InternalValue[Model any] map[string]any
 
-func (i *InternalValue[Model]) Fields() (map[string]interface{}, error) {
-	return i.Map, nil
-}
-
-func (i *InternalValue[Model]) AsModel() (Model, error) {
+func (i InternalValue[Model]) AsModel() (Model, error) {
 	var entity Model
 	decoder, decoderErr := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		TagName: "json",
@@ -43,28 +40,46 @@ func (i *InternalValue[Model]) AsModel() (Model, error) {
 	if decoderErr != nil {
 		return entity, decoderErr
 	}
-	decodeErr := decoder.Decode(i.Map)
+	decodeErr := decoder.Decode(i)
 	if decodeErr != nil {
-		logrus.Errorf("Type of the error is %T", decodeErr)
+		logrus.Debug(i)
 		return entity, fmt.Errorf(
-			"Failed to convert internal value `%v` to model: %w", i.Map, decodeErr,
+			"Failed to convert internal value to model `%T`: Mapstructure error: %w", entity, decodeErr,
 		)
+	}
+	return entity, nil
+}
+
+// function that converts a map to a struct using reflection without mapstructure
+// use json keys as struct field names
+func MapToStruct[Model any](m map[string]any) (Model, error) {
+	var entity Model
+	jsonTagsToFieldNames := map[string]string{}
+	t := reflect.TypeOf(entity)
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		jsonTag := field.Tag.Get("json")
+		if jsonTag != "" {
+			jsonTagsToFieldNames[jsonTag] = field.Name
+		}
+	}
+	v := reflect.ValueOf(&entity).Elem()
+	for k, val := range m {
+		v.FieldByName(jsonTagsToFieldNames[k]).Set(reflect.ValueOf(val))
 	}
 	return entity, nil
 }
 
 // Uses reflect package to do a shallow translation of the model to a map wrapped in an InternalValue. We
 // could use mapstructure, but it does a deep translation, which is not what we want.
-func InternalValueFromModel[Model any](entity Model) (*InternalValue[Model], error) {
+func InternalValueFromModel[Model any](entity Model) (InternalValue[Model], error) {
 	v := reflect.ValueOf(entity)
-	out := make(map[string]interface{})
+	out := make(InternalValue[Model])
 	fields := reflect.VisibleFields(reflect.TypeOf(entity))
 	for _, field := range fields {
 		if !field.Anonymous {
 			out[field.Tag.Get("json")] = v.FieldByName(field.Name).Interface()
 		}
 	}
-	return &InternalValue[Model]{
-		Map: out,
-	}, nil
+	return out, nil
 }

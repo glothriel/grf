@@ -84,9 +84,8 @@ def test_create_success(server_factory):
                 "description": "bar",
             },
         )
-        assert dict(
-            {k: v for k, v in response.json().items() if k in ("name", "description", "price")}
-        ) == {
+        assert strip_created_updated_at(response.json()) == {
+            "id": AnyUUID(),
             "name": "foo",
             "description": "bar",
             "price": "0",
@@ -121,13 +120,11 @@ def test_retrieve(some_products):
     product = requests.get(f"{some_products.url}/products").json()[0]
     response = requests.get(f"{some_products.url}/products/{product['id']}")
     assert response.status_code == 200
-    assert dict(
-        {k: v for k, v in response.json().items() if k not in ("created_at", "updated_at")}
-    ) == {
-        "description": "Tasty and organic made from milk from happy cows",
+    assert strip_created_updated_at(response.json()) == {
         "id": product["id"],
-        "name": "Butter",
-        "price": "13.37",
+        "name": "Apples",
+        "description": "Freshly picked from the tree",
+        "price": "21",
     }
 
 
@@ -141,13 +138,11 @@ def test_update(some_products):
             "description": "updatedbar",
         },
     )
-    assert dict(
-        {k: v for k, v in response.json().items() if k not in ("created_at", "updated_at")}
-    ) == {
-        "description": "updatedbar",
+    assert strip_created_updated_at(response.json()) == {
         "id": product["id"],
         "name": "updatedfoo",
-        "price": "13.37",
+        "description": "updatedbar",
+        "price": "21",
     }
     assert response.status_code == 200
 
@@ -158,3 +153,7 @@ def test_delete(some_products):
     assert response.status_code == 204
     assert response.content == b""
     assert requests.get(f"{some_products.url}/products/{product['id']}").status_code == 404
+
+
+def strip_created_updated_at(product_json):
+    return dict({k: v for k, v in product_json.items() if k not in ("created_at", "updated_at")})

@@ -1,27 +1,32 @@
 package serializers
 
 import (
+	"encoding"
 	"fmt"
 	"reflect"
 	"strings"
 
+	"github.com/glothriel/gin-rest-framework/pkg/fields"
 	"github.com/glothriel/gin-rest-framework/pkg/models"
 	"github.com/glothriel/gin-rest-framework/pkg/types"
 	"github.com/sirupsen/logrus"
 )
 
 type ModelSerializer[Model any] struct {
-	Fields          map[string]Field[Model]
+	Fields          map[string]*fields.Field[Model]
 	FieldTypeMapper *types.FieldTypeMapper
 }
 
-func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]interface{}) (*models.InternalValue[Model], error) {
-	intVMap := make(map[string]interface{})
+func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any) (models.InternalValue[Model], error) {
+	intVMap := make(map[string]any)
 	superfluousFields := make([]string, 0)
 	for k := range raw {
 		field, ok := s.Fields[k]
 		if !ok {
 			superfluousFields = append(superfluousFields, k)
+			continue
+		}
+		if !field.Writable {
 			continue
 		}
 		intV, err := field.InternalValueFunc(raw, k)
@@ -41,58 +46,114 @@ func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]interface{}) (*m
 		}
 		return nil, &ValidationError{FieldErrors: errMap}
 	}
-	return &models.InternalValue[Model]{Map: intVMap}, nil
+	return intVMap, nil
 }
 
-func (s *ModelSerializer[Model]) ToRepresentation(intVal *models.InternalValue[Model]) (map[string]interface{}, error) {
-	raw := make(map[string]interface{})
+func (s *ModelSerializer[Model]) ToRepresentation(intVal models.InternalValue[Model]) (map[string]any, error) {
+	raw := make(map[string]any)
 	for _, field := range s.Fields {
+		if !field.Readable {
+			continue
+		}
 		value, err := field.ToRepresentation(intVal)
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf(
+				"Failed to serialize field `%s` to representation: %w", field.Name(), err,
+			)
 		}
 		raw[field.Name()] = value
 	}
 	return raw, nil
 }
 
-func (s *ModelSerializer[Model]) Validate(intVal *models.InternalValue[Model]) error {
+func (s *ModelSerializer[Model]) FromDB(raw map[string]any) (models.InternalValue[Model], error) {
+
+	intVMap := make(models.InternalValue[Model])
+	for k := range raw {
+		field, ok := s.Fields[k]
+		if !ok {
+			continue
+		}
+		intV, err := field.FromDBFunc(raw, k)
+		if err != nil {
+			return nil, fmt.Errorf("Failed to serialize field `%s` from database: %s", k, err)
+		}
+		intVMap[k] = intV
+	}
+
+	return intVMap, nil
+}
+
+func (s *ModelSerializer[Model]) Validate(intVal models.InternalValue[Model]) error {
 	return nil
 }
 
-func (s *ModelSerializer[Model]) WithField(field Field[Model]) *ModelSerializer[Model] {
+func (s *ModelSerializer[Model]) WithField(field *fields.Field[Model]) *ModelSerializer[Model] {
 	s.Fields[field.Name()] = field
 	return s
 }
 
-func (s *ModelSerializer[Model]) WithExistingFields(fields []string) *ModelSerializer[Model] {
-	s.Fields = make(map[string]Field[Model])
+func (s *ModelSerializer[Model]) WithFieldUpdated(name string, updateFunc func(f *fields.Field[Model])) *ModelSerializer[Model] {
+	v, ok := s.Fields[name]
+	if !ok {
+		var m Model
+		logrus.Fatalf("Could not find field `%s` on model `%s` when registering serializer field", name, reflect.TypeOf(m))
+	}
+	updateFunc(v)
+	return s
+
+}
+
+func (s *ModelSerializer[Model]) WithExistingFields(passedFields []string) *ModelSerializer[Model] {
+	s.Fields = make(map[string]*fields.Field[Model])
 	var m Model
 	attributeTypes := DetectAttributes(m)
-	for _, field := range fields {
+	for _, field := range passedFields {
 		attributeType, ok := attributeTypes[field]
 		if !ok {
-			logrus.Fatalf("Could not find field `%s` on model `%s` when registering serializer field", field, reflect.TypeOf(m))
+			logrus.Fatalf("Could not find field `%s` on model `%s` when registering serializer fields", field, reflect.TypeOf(m))
 		}
 		toRepresentation, toRepresentationErr := s.FieldTypeMapper.ToRepresentation(attributeType)
 		if toRepresentationErr != nil {
-			logrus.Fatalf("Could not determine representation of field `%s` on model `%s`: %s", field, reflect.TypeOf(m), toRepresentationErr)
+			logrus.Debugf("Could not determine representation of field `%s` on model `%s`: %s", field, reflect.TypeOf(m), toRepresentationErr)
+			toRepresentation = EncodingAwareToRepresentation[Model](field)
 		}
 		toInternalValue, toInternalValueErr := s.FieldTypeMapper.ToInternalValue(attributeType)
 		if toInternalValueErr != nil {
-			logrus.Fatalf("Could not determine internal value of field `%s` on model `%s`: %s", field, reflect.TypeOf(m), toInternalValueErr)
+			logrus.Debugf("Could not determine internal value of field `%s` on model `%s`: %s", field, reflect.TypeOf(m), toInternalValueErr)
+			toInternalValue = EncodingAwareToInternalValue[Model](field)
 		}
-		s.Fields[field] = Field[Model]{
-			ItsName:            field,
-			RepresentationFunc: ConvertFuncToRepresentationFuncAdapter[Model](toRepresentation),
-			InternalValueFunc:  ConvertFuncToInternalValueFuncAdapter(toInternalValue),
+		s.Fields[field] = fields.NewField[Model](
+			field,
+		).WithRepresentationFunc(
+			ConvertFuncToRepresentationFuncAdapter[Model](toRepresentation),
+		).WithInternalValueFunc(
+			ConvertFuncToInternalValueFuncAdapter(toInternalValue),
+		)
+	}
+	modelAttrs := reflect.VisibleFields(reflect.TypeOf(m))
+	v := reflect.ValueOf(m)
+	for _, attr := range modelAttrs {
+		if !attr.Anonymous {
+			updater, ok := v.FieldByName(attr.Name).Interface().(FieldUpdater[Model])
+			if ok {
+				updater.Update(s.Fields[attr.Tag.Get("json")])
+				continue
+			}
 		}
 	}
 	return s
 }
 
+type FieldUpdater[Model any] interface {
+	Update(f *fields.Field[Model])
+}
+
 func NewModelSerializer[Model any](ftm *types.FieldTypeMapper) *ModelSerializer[Model] {
+	if ftm == nil {
+		ftm = types.DefaultFieldTypeMapper()
+	}
 	fieldNames := []string{}
 	var m Model
 	fields := reflect.VisibleFields(reflect.TypeOf(m))
@@ -107,62 +168,15 @@ func NewModelSerializer[Model any](ftm *types.FieldTypeMapper) *ModelSerializer[
 	}).WithExistingFields(fieldNames)
 }
 
-type RepresentationFunc[Model any] func(*models.InternalValue[Model], string) (interface{}, error)
-type InternalValueFunc func(map[string]interface{}, string) (interface{}, error)
-
-func ConvertFuncToRepresentationFuncAdapter[Model any](cf types.ConvertFunc) RepresentationFunc[Model] {
-	return func(intVal *models.InternalValue[Model], name string) (interface{}, error) {
-		return cf(intVal.Map[name])
+func ConvertFuncToRepresentationFuncAdapter[Model any](cf types.ConvertFunc) fields.RepresentationFunc[Model] {
+	return func(intVal models.InternalValue[Model], name string) (any, error) {
+		return cf(intVal[name])
 	}
 }
 
-func ConvertFuncToInternalValueFuncAdapter(cf types.ConvertFunc) InternalValueFunc {
-	return func(reprModel map[string]interface{}, name string) (interface{}, error) {
+func ConvertFuncToInternalValueFuncAdapter(cf types.ConvertFunc) fields.InternalValueFunc {
+	return func(reprModel map[string]any, name string) (any, error) {
 		return cf(reprModel[name])
-	}
-}
-
-func RepresentationPassthrough[Model any]() RepresentationFunc[Model] {
-	return func(intVal *models.InternalValue[Model], name string) (interface{}, error) {
-		return intVal.Map[name], nil
-	}
-}
-
-func InternalValuePassthrough() InternalValueFunc {
-	return func(reprModel map[string]interface{}, name string) (interface{}, error) {
-		return reprModel[name], nil
-	}
-}
-
-type Field[Model any] struct {
-	ItsName            string
-	RepresentationFunc RepresentationFunc[Model]
-	InternalValueFunc  InternalValueFunc
-	Readable           bool
-	Writable           bool
-}
-
-func (s *Field[Model]) Name() string {
-	return s.ItsName
-}
-
-func (s *Field[Model]) ToRepresentation(intVal *models.InternalValue[Model]) (interface{}, error) {
-	return s.RepresentationFunc(intVal, s.ItsName)
-}
-
-func (s *Field[Model]) ToInternalValue(reprModel map[string]interface{}) (interface{}, error) {
-	return s.InternalValueFunc(reprModel, s.ItsName)
-}
-
-func ExistingField[Model any](name string) Field[Model] {
-	return Field[Model]{
-		ItsName: name,
-		RepresentationFunc: func(intVal *models.InternalValue[Model], name string) (interface{}, error) {
-			return intVal.Map[name], nil
-		},
-		InternalValueFunc: func(reprModel map[string]interface{}, name string) (interface{}, error) {
-			return reprModel[name], nil
-		},
 	}
 }
 
@@ -176,4 +190,81 @@ func DetectAttributes[Model any](model Model) map[string]string {
 		}
 	}
 	return ret
+}
+
+func EncodingAwareToInternalValue[Model any](fieldName string) types.ConvertFunc {
+	settings := getFieldSettings[Model](fieldName)
+	if settings == nil {
+		var entity Model
+		logrus.Fatalf("Could not find field `%s` on model `%s`", fieldName, reflect.TypeOf(entity))
+	}
+	return func(v any) (any, error) {
+		var realFieldValue any = reflect.New(settings.itsType).Interface()
+		vStr, ok := v.(string)
+		if ok {
+			if settings.isEncodingTextUnmarshaler {
+				fv := realFieldValue.(encoding.TextUnmarshaler)
+				unmarshalErr := fv.UnmarshalText([]byte(vStr))
+				return fv, unmarshalErr
+			} else {
+				return types.ConvertPassThrough(v)
+			}
+		}
+
+		return types.ConvertPassThrough(v)
+	}
+}
+
+func EncodingAwareToRepresentation[Model any](fieldName string) types.ConvertFunc {
+	settings := getFieldSettings[Model](fieldName)
+	if settings == nil {
+		var entity Model
+		logrus.Fatalf("Could not find field `%s` on model `%s`", fieldName, reflect.TypeOf(entity))
+	}
+	return func(v any) (any, error) {
+		if settings.isEncodingTextMarshaler {
+			marshalledBytes, marshallErr := v.(encoding.TextMarshaler).MarshalText()
+			if marshallErr != nil {
+				return nil, marshallErr
+			}
+			return string(marshalledBytes), nil
+		}
+		return types.ConvertPassThrough(v)
+	}
+}
+
+type fieldSettings struct {
+	itsType                      reflect.Type
+	isEncodingTextMarshaler      bool
+	isPtrEncodingTextMarshaler   bool
+	isEncodingTextUnmarshaler    bool
+	isPtrEncodingTextUnmarshaler bool
+}
+
+func getFieldSettings[Model any](fieldName string) *fieldSettings {
+	var entity Model
+	var settings *fieldSettings
+	for _, field := range reflect.VisibleFields(reflect.TypeOf(entity)) {
+		jsonTag := field.Tag.Get("json")
+		if jsonTag == fieldName {
+			var theTypeAsAny any
+			reflectedInstance := reflect.New(reflect.TypeOf(reflect.ValueOf(entity).FieldByName(field.Name).Interface())).Elem()
+			if reflectedInstance.CanAddr() {
+				theTypeAsAny = reflectedInstance.Addr().Interface()
+			} else {
+				theTypeAsAny = reflectedInstance.Interface()
+			}
+
+			_, isEncodingTextMarshaler := theTypeAsAny.(encoding.TextMarshaler)
+			_, isEncodingTextUnmarshaler := theTypeAsAny.(encoding.TextUnmarshaler)
+			settings = &fieldSettings{
+				itsType: reflect.TypeOf(
+					reflectedInstance.Interface(),
+				),
+				isEncodingTextMarshaler:   isEncodingTextMarshaler,
+				isEncodingTextUnmarshaler: isEncodingTextUnmarshaler,
+			}
+		}
+	}
+	return settings
 }

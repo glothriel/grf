@@ -32,6 +32,6 @@ func (p *LimitOffsetPagination) Apply(c *gin.Context, db *gorm.DB) *gorm.DB {
 	return db
 }
 
-func (p *LimitOffsetPagination) Format(entities []interface{}) (interface{}, error) {
+func (p *LimitOffsetPagination) Format(entities []any) (any, error) {
 	return entities, nil
 }
