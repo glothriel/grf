@@ -4,38 +4,39 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/glothriel/gin-rest-framework/pkg/models"
+	"github.com/glothriel/grf/pkg/grfctx"
+	"github.com/glothriel/grf/pkg/models"
 	playgroundValidate "github.com/go-playground/validator/v10"
 	gookitValidate "github.com/gookit/validate"
 	"github.com/sirupsen/logrus"
 )
 
 type ValidatingSerializer[Model any] struct {
-	child      Serializer[Model]
+	child      Serializer
 	Validators []Validator[Model]
 }
 
-func (s *ValidatingSerializer[Model]) ToInternalValue(raw map[string]any) (models.InternalValue[Model], error) {
-	intVal, err := s.child.ToInternalValue(raw)
+func (s *ValidatingSerializer[Model]) ToInternalValue(raw map[string]any, ctx *grfctx.Context) (models.InternalValue, error) {
+	intVal, err := s.child.ToInternalValue(raw, ctx)
 	if err != nil {
 		return intVal, err
 	}
-	return intVal, s.Validate(intVal)
+	return intVal, s.Validate(intVal, ctx)
 }
 
-func (s *ValidatingSerializer[Model]) ToRepresentation(intVal models.InternalValue[Model]) (map[string]any, error) {
-	return s.child.ToRepresentation(intVal)
+func (s *ValidatingSerializer[Model]) ToRepresentation(intVal models.InternalValue, ctx *grfctx.Context) (Representation, error) {
+	return s.child.ToRepresentation(intVal, ctx)
 }
 
-func (s *ValidatingSerializer[Model]) FromDB(raw map[string]any) (models.InternalValue[Model], error) {
-	intVal, err := s.child.FromDB(raw)
+func (s *ValidatingSerializer[Model]) FromDB(raw map[string]any, ctx *grfctx.Context) (models.InternalValue, error) {
+	intVal, err := s.child.FromDB(raw, ctx)
 	if err != nil {
 		return intVal, err
 	}
 	return intVal, nil
 }
 
-func (s *ValidatingSerializer[Model]) Validate(intVal models.InternalValue[Model]) error {
+func (s *ValidatingSerializer[Model]) Validate(intVal models.InternalValue, ctx *grfctx.Context) error {
 	errors := make([]error, 0)
 	for _, validator := range s.Validators {
 		err := validator.Validate(intVal)
@@ -54,12 +55,12 @@ func (s *ValidatingSerializer[Model]) WithValidator(validator Validator[Model]) 
 	return s
 }
 
-func NewValidatingSerializer[Model any](child Serializer[Model]) *ValidatingSerializer[Model] {
+func NewValidatingSerializer[Model any](child Serializer) *ValidatingSerializer[Model] {
 	return &ValidatingSerializer[Model]{child: child}
 }
 
 type Validator[Model any] interface {
-	Validate(models.InternalValue[Model]) error
+	Validate(models.InternalValue) error
 }
 
 type GookitValidator[Model any] struct {
@@ -73,8 +74,8 @@ type GookitRule struct {
 	Args      []any
 }
 
-func (v *GookitValidator[Model]) Validate(intVal models.InternalValue[Model]) error {
-	entity, asModelErr := intVal.AsModel()
+func (v *GookitValidator[Model]) Validate(intVal models.InternalValue) error {
+	entity, asModelErr := models.AsModel[Model](intVal)
 	if asModelErr != nil {
 		return asModelErr
 	}
@@ -96,9 +97,9 @@ func NewGoogkitValidator[Model any]() *GookitValidator[Model] {
 
 type GoPlaygroundValidator[Model any] struct{}
 
-func (v *GoPlaygroundValidator[Model]) Validate(intVal models.InternalValue[Model]) error {
+func (v *GoPlaygroundValidator[Model]) Validate(intVal models.InternalValue) error {
 
-	entity, asModelErr := intVal.AsModel()
+	entity, asModelErr := models.AsModel[Model](intVal)
 	if asModelErr != nil {
 		return asModelErr
 	}

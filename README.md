@@ -45,10 +45,24 @@ Other gunicorn flag variants had even lower performance.
 
 # Roadmap
 
-* ~~cleanup deserialization string/decimal issue~~
-* tests
-* ModelList ordering
-* ReadOnly and WriteOnly fields
-* richer context (ability to extract gin request data directly from Field)
-* more complex pagination implementations
-* docs
+
+* Add rich context to serializer and fields (ability to extract gin request data directly from Field)
+    * Unlocks creating fields based on non-body data, gin context, etc - like `CurrentlyLoggedInUser` from Authorization header or so
+* Add support for setting up middleware (before/after request is executed), including using Gin middlewares directly
+* Improve unit test coverage
+* Documentation portal
+* Add support for complex to implement types:
+    * time.Time
+    * time.Duration
+    * list<int>
+    * pointer fields, for example `*string`
+    * sql.Null.* fields, for example `sql.NullString`
+    * JSON fields, both as text (sqlite) and as dedicated columns (eg. Postgres)
+* Add proper support for custom validators
+* Add support for model relations
+* Add support for authentication
+* Add support for complex pagination implementations
+* Add support for permissions (authorization)
+* Add support for caches
+* Add support for throttling
+* Add testing utils

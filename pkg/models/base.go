@@ -27,28 +27,7 @@ func (base *BaseModel) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-type InternalValue[Model any] map[string]any
-
-func (i InternalValue[Model]) AsModel() (Model, error) {
-	var entity Model
-	decoder, decoderErr := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		TagName: "json",
-		Result:  &entity,
-		Squash:  true,
-	})
-
-	if decoderErr != nil {
-		return entity, decoderErr
-	}
-	decodeErr := decoder.Decode(i)
-	if decodeErr != nil {
-		logrus.Debug(i)
-		return entity, fmt.Errorf(
-			"Failed to convert internal value to model `%T`: Mapstructure error: %w", entity, decodeErr,
-		)
-	}
-	return entity, nil
-}
+type InternalValue map[string]any
 
 // function that converts a map to a struct using reflection without mapstructure
 // use json keys as struct field names
@@ -72,9 +51,9 @@ func MapToStruct[Model any](m map[string]any) (Model, error) {
 
 // Uses reflect package to do a shallow translation of the model to a map wrapped in an InternalValue. We
 // could use mapstructure, but it does a deep translation, which is not what we want.
-func InternalValueFromModel[Model any](entity Model) (InternalValue[Model], error) {
+func AsInternalValue[Model any](entity Model) (InternalValue, error) {
 	v := reflect.ValueOf(entity)
-	out := make(InternalValue[Model])
+	out := make(InternalValue)
 	fields := reflect.VisibleFields(reflect.TypeOf(entity))
 	for _, field := range fields {
 		if !field.Anonymous {
@@ -82,4 +61,25 @@ func InternalValueFromModel[Model any](entity Model) (InternalValue[Model], erro
 		}
 	}
 	return out, nil
+}
+
+func AsModel[Model any](i InternalValue) (Model, error) {
+	var entity Model
+	decoder, decoderErr := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		TagName: "json",
+		Result:  &entity,
+		Squash:  true,
+	})
+
+	if decoderErr != nil {
+		return entity, decoderErr
+	}
+	decodeErr := decoder.Decode(i)
+	if decodeErr != nil {
+		logrus.Debug(i)
+		return entity, fmt.Errorf(
+			"Failed to convert internal value to model `%T`: Mapstructure error: %w", entity, decodeErr,
+		)
+	}
+	return entity, nil
 }

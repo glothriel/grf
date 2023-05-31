@@ -5,10 +5,11 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glothriel/gin-rest-framework/pkg/fields"
-	"github.com/glothriel/gin-rest-framework/pkg/models"
-	"github.com/glothriel/gin-rest-framework/pkg/serializers"
-	"github.com/glothriel/gin-rest-framework/pkg/views"
+	"github.com/glothriel/grf/pkg/db"
+	"github.com/glothriel/grf/pkg/fields"
+	"github.com/glothriel/grf/pkg/models"
+	"github.com/glothriel/grf/pkg/serializers"
+	"github.com/glothriel/grf/pkg/views"
 	"github.com/sirupsen/logrus"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -32,17 +33,18 @@ func main() {
 	flag.Parse()
 
 	router := gin.Default()
-	db, err := gorm.Open(sqlite.Open(*dbFile), &gorm.Config{})
+	gormDB, err := gorm.Open(sqlite.Open(*dbFile), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
 	}
+	dbResolver := db.NewStaticResolver(gormDB)
 
 	serializer := serializers.NewValidatingSerializer[SDGConfig](
 		serializers.NewModelSerializer[SDGConfig](nil)).WithValidator(
 		&serializers.GoPlaygroundValidator[SDGConfig]{},
 	)
 
-	views.NewListCreateModelView[SDGConfig]("/sdg", db).WithSerializer(
+	views.NewListCreateModelView[SDGConfig]("/sdg", dbResolver).WithSerializer(
 		serializer,
 	).WithFilter(
 		func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
@@ -53,11 +55,11 @@ func main() {
 		},
 	).Register(router)
 
-	views.NewRetrieveUpdateDeleteModelView[SDGConfig]("/sdg/:id", db).WithSerializer(
+	views.NewRetrieveUpdateDeleteModelView[SDGConfig]("/sdg/:id", dbResolver).WithSerializer(
 		serializer,
 	).Register(router)
 
-	if migrateErr := db.AutoMigrate(&SDGConfig{}); migrateErr != nil {
+	if migrateErr := gormDB.AutoMigrate(&SDGConfig{}); migrateErr != nil {
 		logrus.Fatalf("Error migrating database: %s", migrateErr)
 	}
 
