@@ -1,10 +1,14 @@
 package serializers
 
-import "github.com/glothriel/gin-rest-framework/pkg/models"
+import (
+	"github.com/glothriel/grf/pkg/grfctx"
+	"github.com/glothriel/grf/pkg/models"
+)
 
-type Serializer[Model any] interface {
-	ToInternalValue(map[string]any) (models.InternalValue[Model], error)
-	FromDB(map[string]any) (models.InternalValue[Model], error)
-	Validate(models.InternalValue[Model]) error
-	ToRepresentation(models.InternalValue[Model]) (map[string]any, error)
+type Representation map[string]any
+
+type Serializer interface {
+	ToInternalValue(map[string]any, *grfctx.Context) (models.InternalValue, error)
+	FromDB(map[string]any, *grfctx.Context) (models.InternalValue, error)
+	ToRepresentation(models.InternalValue, *grfctx.Context) (Representation, error)
 }

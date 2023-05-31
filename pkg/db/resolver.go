@@ -9,10 +9,16 @@ type Resolver interface {
 	Resolve(*gin.Context) (*gorm.DB, error)
 }
 
-type DefaultResolver struct {
+type StaticResolver struct {
 	Db *gorm.DB
 }
 
-func (r *DefaultResolver) Resolve(_ *gin.Context) (*gorm.DB, error) {
+func (r *StaticResolver) Resolve(_ *gin.Context) (*gorm.DB, error) {
 	return r.Db, nil
+}
+
+func NewStaticResolver(db *gorm.DB) Resolver {
+	return &StaticResolver{
+		Db: db,
+	}
 }

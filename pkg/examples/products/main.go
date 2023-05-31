@@ -5,9 +5,10 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glothriel/gin-rest-framework/pkg/models"
-	"github.com/glothriel/gin-rest-framework/pkg/serializers"
-	"github.com/glothriel/gin-rest-framework/pkg/views"
+	"github.com/glothriel/grf/pkg/db"
+	"github.com/glothriel/grf/pkg/models"
+	"github.com/glothriel/grf/pkg/serializers"
+	"github.com/glothriel/grf/pkg/views"
 
 	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
@@ -29,25 +30,25 @@ func main() {
 	flag.Parse()
 
 	router := gin.Default()
-	db, err := gorm.Open(sqlite.Open(*dbFile), &gorm.Config{})
+	gormDB, err := gorm.Open(sqlite.Open(*dbFile), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
 	}
 
-	if migrateErr := db.AutoMigrate(&Product{}); migrateErr != nil {
+	if migrateErr := gormDB.AutoMigrate(&Product{}); migrateErr != nil {
 		logrus.Fatalf("Error migrating database: %s", migrateErr)
 	}
-	serializer := serializers.NewValidatingSerializer[Product](
-		serializers.NewModelSerializer[Product](nil),
-	).WithValidator(
-		&serializers.GoPlaygroundValidator[Product]{},
-	)
+	dbResolver := db.NewStaticResolver(gormDB)
 
-	views.NewListCreateModelView[Product]("/products", db).WithSerializer(
-		serializer,
+	views.NewListCreateModelView[Product]("/products", dbResolver).WithSerializer(
+		serializers.NewValidatingSerializer[Product](
+			serializers.NewModelSerializer[Product](nil),
+		).WithValidator(
+			&serializers.GoPlaygroundValidator[Product]{},
+		),
 	).WithListSerializer(
 		serializers.NewModelSerializer[Product](nil).
-			WithExistingFields([]string{"id", "name"}),
+			WithModelFields([]string{"id", "name"}),
 	).WithFilter(
 		func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
 			if ctx.Query("name") != "" {
@@ -57,8 +58,12 @@ func main() {
 		},
 	).WithOrderBy("name ASC").Register(router)
 
-	views.NewRetrieveUpdateDeleteModelView[Product]("/products/:id", db).WithSerializer(
-		serializer,
+	views.NewRetrieveUpdateDeleteModelView[Product]("/products/:id", dbResolver).WithSerializer(
+		serializers.NewValidatingSerializer[Product](
+			serializers.NewModelSerializer[Product](nil),
+		).WithValidator(
+			&serializers.GoPlaygroundValidator[Product]{},
+		),
 	).Register(router)
 
 	logrus.Fatal(router.Run(fmt.Sprintf(":%d", *serverPort)))

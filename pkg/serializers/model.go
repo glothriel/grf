@@ -6,9 +6,10 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/glothriel/gin-rest-framework/pkg/fields"
-	"github.com/glothriel/gin-rest-framework/pkg/models"
-	"github.com/glothriel/gin-rest-framework/pkg/types"
+	"github.com/glothriel/grf/pkg/fields"
+	"github.com/glothriel/grf/pkg/grfctx"
+	"github.com/glothriel/grf/pkg/models"
+	"github.com/glothriel/grf/pkg/types"
 	"github.com/sirupsen/logrus"
 )
 
@@ -17,7 +18,7 @@ type ModelSerializer[Model any] struct {
 	FieldTypeMapper *types.FieldTypeMapper
 }
 
-func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any) (models.InternalValue[Model], error) {
+func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any, ctx *grfctx.Context) (models.InternalValue, error) {
 	intVMap := make(map[string]any)
 	superfluousFields := make([]string, 0)
 	for k := range raw {
@@ -29,7 +30,7 @@ func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any) (models.Int
 		if !field.Writable {
 			continue
 		}
-		intV, err := field.InternalValueFunc(raw, k)
+		intV, err := field.InternalValueFunc(raw, k, ctx)
 		if err != nil {
 			return nil, &ValidationError{FieldErrors: map[string][]string{k: {err.Error()}}}
 		}
@@ -49,13 +50,13 @@ func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any) (models.Int
 	return intVMap, nil
 }
 
-func (s *ModelSerializer[Model]) ToRepresentation(intVal models.InternalValue[Model]) (map[string]any, error) {
+func (s *ModelSerializer[Model]) ToRepresentation(intVal models.InternalValue, ctx *grfctx.Context) (Representation, error) {
 	raw := make(map[string]any)
 	for _, field := range s.Fields {
 		if !field.Readable {
 			continue
 		}
-		value, err := field.ToRepresentation(intVal)
+		value, err := field.ToRepresentation(intVal, ctx)
 
 		if err != nil {
 			return nil, fmt.Errorf(
@@ -67,15 +68,14 @@ func (s *ModelSerializer[Model]) ToRepresentation(intVal models.InternalValue[Mo
 	return raw, nil
 }
 
-func (s *ModelSerializer[Model]) FromDB(raw map[string]any) (models.InternalValue[Model], error) {
-
-	intVMap := make(models.InternalValue[Model])
+func (s *ModelSerializer[Model]) FromDB(raw map[string]any, ctx *grfctx.Context) (models.InternalValue, error) {
+	intVMap := make(models.InternalValue)
 	for k := range raw {
 		field, ok := s.Fields[k]
 		if !ok {
 			continue
 		}
-		intV, err := field.FromDBFunc(raw, k)
+		intV, err := field.FromDBFunc(raw, k, ctx)
 		if err != nil {
 			return nil, fmt.Errorf("Failed to serialize field `%s` from database: %s", k, err)
 		}
@@ -85,16 +85,16 @@ func (s *ModelSerializer[Model]) FromDB(raw map[string]any) (models.InternalValu
 	return intVMap, nil
 }
 
-func (s *ModelSerializer[Model]) Validate(intVal models.InternalValue[Model]) error {
+func (s *ModelSerializer[Model]) Validate(intVal models.InternalValue, ctx *grfctx.Context) error {
 	return nil
 }
 
-func (s *ModelSerializer[Model]) WithField(field *fields.Field[Model]) *ModelSerializer[Model] {
+func (s *ModelSerializer[Model]) WithNewField(field *fields.Field[Model]) *ModelSerializer[Model] {
 	s.Fields[field.Name()] = field
 	return s
 }
 
-func (s *ModelSerializer[Model]) WithFieldUpdated(name string, updateFunc func(f *fields.Field[Model])) *ModelSerializer[Model] {
+func (s *ModelSerializer[Model]) WithField(name string, updateFunc func(oldField *fields.Field[Model])) *ModelSerializer[Model] {
 	v, ok := s.Fields[name]
 	if !ok {
 		var m Model
@@ -102,10 +102,9 @@ func (s *ModelSerializer[Model]) WithFieldUpdated(name string, updateFunc func(f
 	}
 	updateFunc(v)
 	return s
-
 }
 
-func (s *ModelSerializer[Model]) WithExistingFields(passedFields []string) *ModelSerializer[Model] {
+func (s *ModelSerializer[Model]) WithModelFields(passedFields []string) *ModelSerializer[Model] {
 	s.Fields = make(map[string]*fields.Field[Model])
 	var m Model
 	attributeTypes := DetectAttributes(m)
@@ -117,12 +116,12 @@ func (s *ModelSerializer[Model]) WithExistingFields(passedFields []string) *Mode
 		toRepresentation, toRepresentationErr := s.FieldTypeMapper.ToRepresentation(attributeType)
 		if toRepresentationErr != nil {
 			logrus.Debugf("Could not determine representation of field `%s` on model `%s`: %s", field, reflect.TypeOf(m), toRepresentationErr)
-			toRepresentation = EncodingAwareToRepresentation[Model](field)
+			toRepresentation = EncodeToStringOrPassthrough[Model](field)
 		}
 		toInternalValue, toInternalValueErr := s.FieldTypeMapper.ToInternalValue(attributeType)
 		if toInternalValueErr != nil {
 			logrus.Debugf("Could not determine internal value of field `%s` on model `%s`: %s", field, reflect.TypeOf(m), toInternalValueErr)
-			toInternalValue = EncodingAwareToInternalValue[Model](field)
+			toInternalValue = DecodeFromStringOrPassthrough[Model](field)
 		}
 		s.Fields[field] = fields.NewField[Model](
 			field,
@@ -165,17 +164,17 @@ func NewModelSerializer[Model any](ftm *types.FieldTypeMapper) *ModelSerializer[
 
 	return (&ModelSerializer[Model]{
 		FieldTypeMapper: ftm,
-	}).WithExistingFields(fieldNames)
+	}).WithModelFields(fieldNames)
 }
 
 func ConvertFuncToRepresentationFuncAdapter[Model any](cf types.ConvertFunc) fields.RepresentationFunc[Model] {
-	return func(intVal models.InternalValue[Model], name string) (any, error) {
+	return func(intVal models.InternalValue, name string, ctx *grfctx.Context) (any, error) {
 		return cf(intVal[name])
 	}
 }
 
 func ConvertFuncToInternalValueFuncAdapter(cf types.ConvertFunc) fields.InternalValueFunc {
-	return func(reprModel map[string]any, name string) (any, error) {
+	return func(reprModel map[string]any, name string, ctx *grfctx.Context) (any, error) {
 		return cf(reprModel[name])
 	}
 }
@@ -192,7 +191,7 @@ func DetectAttributes[Model any](model Model) map[string]string {
 	return ret
 }
 
-func EncodingAwareToInternalValue[Model any](fieldName string) types.ConvertFunc {
+func DecodeFromStringOrPassthrough[Model any](fieldName string) types.ConvertFunc {
 	settings := getFieldSettings[Model](fieldName)
 	if settings == nil {
 		var entity Model
@@ -215,7 +214,7 @@ func EncodingAwareToInternalValue[Model any](fieldName string) types.ConvertFunc
 	}
 }
 
-func EncodingAwareToRepresentation[Model any](fieldName string) types.ConvertFunc {
+func EncodeToStringOrPassthrough[Model any](fieldName string) types.ConvertFunc {
 	settings := getFieldSettings[Model](fieldName)
 	if settings == nil {
 		var entity Model

@@ -17,7 +17,7 @@ func InternalValueCase[Model any, TestedType any](t *testing.T, passedValue any,
 
 	internalValue, toInternalValueErr := baseField.ToInternalValue(map[string]any{
 		"some_items": passedValue,
-	})
+	}, nil)
 
 	assert.NoError(t, toInternalValueErr)
 	assert.Equal(t, expectedValue, internalValue)
@@ -55,7 +55,7 @@ func TestSliceFieldNotACollection(t *testing.T) {
 
 		_, toInternalValueErr := baseField.ToInternalValue(map[string]any{
 			"some_items": invalidTypeVar,
-		})
+		}, nil)
 
 		assert.ErrorContains(t, toInternalValueErr, "Should be a collection")
 	}
@@ -68,7 +68,7 @@ func TestSliceFieldOneOfCollectionItemsInvalidType(t *testing.T) {
 
 	_, toInternalValueErr := baseField.ToInternalValue(map[string]any{
 		"some_items": []any{1.0, 1.2, "foo"},
-	})
+	}, nil)
 
 	assert.ErrorContains(t, toInternalValueErr, "some_items[2] is not a valid float64")
 }

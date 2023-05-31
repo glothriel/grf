@@ -7,82 +7,83 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glothriel/gin-rest-framework/pkg/fields"
-	"github.com/glothriel/gin-rest-framework/pkg/models"
-	"github.com/glothriel/gin-rest-framework/pkg/serializers"
-	"github.com/glothriel/gin-rest-framework/pkg/views"
+	"github.com/glothriel/grf/pkg/db"
+	"github.com/glothriel/grf/pkg/fields"
+	"github.com/glothriel/grf/pkg/models"
+	"github.com/glothriel/grf/pkg/serializers"
+	"github.com/glothriel/grf/pkg/views"
 	"github.com/sirupsen/logrus"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
-type BoolField struct {
+type BoolModel struct {
 	models.BaseModel
 	Value bool `json:"value" gorm:"column:value"`
 }
 
-type StringField struct {
+type StringModel struct {
 	models.BaseModel
 	Value string `json:"value" gorm:"column:value"`
 }
 
-type StringPointerField struct {
+type StringPtrModel struct {
 	models.BaseModel
 	Value *string `json:"value" gorm:"column:value"`
 }
 
-type NullStringField struct {
+type NullStringModel struct {
 	models.BaseModel
 	Value sql.NullString `json:"value" gorm:"column:value"`
 }
 
-type IntField struct {
+type IntModel struct {
 	models.BaseModel
 	Value int `json:"value" gorm:"column:value"`
 }
-type UintField struct {
+type UintModel struct {
 	models.BaseModel
 	Value uint `json:"value" gorm:"column:value"`
 }
 
-type FloatField struct {
+type FloatModel struct {
 	models.BaseModel
 	Value float64 `json:"value" gorm:"column:value"`
 }
 
-type DateTimeField struct {
+type DateTimeModel struct {
 	models.BaseModel
 	Value time.Time `json:"value" gorm:"column:value"`
 }
 
-type DurationField struct {
+type DurationModel struct {
 	models.BaseModel
 	Value time.Duration `json:"value" gorm:"column:value"`
 }
 
-type StringSliceField struct {
+type StringSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[string, StringSliceField] `json:"value" gorm:"column:value;type:text"`
+	Value fields.SliceModelField[string, StringSliceModel] `json:"value" gorm:"column:value;type:text"`
 }
 
-type IntSliceField struct {
+type IntSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[int, IntSliceField] `json:"value" gorm:"column:value;type:text"`
+	Value fields.SliceModelField[int, IntSliceModel] `json:"value" gorm:"column:value;type:text"`
 }
 
-type FloatSliceField struct {
+type FloatSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[float64, FloatSliceField] `json:"value" gorm:"column:value;type:text"`
+	Value fields.SliceModelField[float64, FloatSliceModel] `json:"value" gorm:"column:value;type:text"`
 }
 
-type MapSliceField struct {
+type MapSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[map[string]any, MapSliceField] `json:"value" gorm:"column:value;type:text"`
+	Value fields.SliceModelField[map[string]any, MapSliceModel] `json:"value" gorm:"column:value;type:text"`
 }
 
-type BoolSliceField struct {
+type BoolSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[bool, BoolSliceField] `json:"value" gorm:"column:value;type:text"`
+	Value fields.SliceModelField[bool, BoolSliceModel] `json:"value" gorm:"column:value;type:text"`
 }
 
 func main() {
@@ -91,51 +92,50 @@ func main() {
 	flag.Parse()
 
 	router := gin.Default()
-	db, err := gorm.Open(sqlite.Open(*dbFile), &gorm.Config{})
+	gormDB, err := gorm.Open(sqlite.Open(*dbFile), &gorm.Config{})
 	if err != nil {
 		panic("failed to connect database")
 	}
+	dbResolver := db.NewStaticResolver(gormDB)
 
-	registerModel[BoolField](router, db, "/bool_field", "created_at")
-	registerModel[StringField](router, db, "/string_field", "created_at")
-	registerModel[StringPointerField](router, db, "/string_pointer_field", "created_at")
-	registerModel[IntField](router, db, "/int_field", "created_at")
-	registerModel[UintField](router, db, "/uint_field", "created_at")
-	registerModel[FloatField](router, db, "/float_field", "created_at")
-	registerModel[StringSliceField](router, db, "/string_slice_field", "created_at")
-	registerModel[FloatSliceField](router, db, "/float_slice_field", "created_at")
-	registerModel[MapSliceField](router, db, "/map_slice_field", "created_at")
-	registerModel[BoolSliceField](router, db, "/bool_slice_field", "created_at")
+	registerModel[BoolModel](router, dbResolver, gormDB, "/bool_field", "created_at")
+	registerModel[StringModel](router, dbResolver, gormDB, "/string_field", "created_at")
+	registerModel[StringPtrModel](router, dbResolver, gormDB, "/string_pointer_field", "created_at")
+	registerModel[IntModel](router, dbResolver, gormDB, "/int_field", "created_at")
+	registerModel[UintModel](router, dbResolver, gormDB, "/uint_field", "created_at")
+	registerModel[FloatModel](router, dbResolver, gormDB, "/float_field", "created_at")
+	registerModel[StringSliceModel](router, dbResolver, gormDB, "/string_slice_field", "created_at")
+	registerModel[FloatSliceModel](router, dbResolver, gormDB, "/float_slice_field", "created_at")
+	registerModel[MapSliceModel](router, dbResolver, gormDB, "/map_slice_field", "created_at")
+	registerModel[BoolSliceModel](router, dbResolver, gormDB, "/bool_slice_field", "created_at")
 
-	registerModel[DurationField](router, db, "/duration_field", "created_at")
-	registerModel[DateTimeField](router, db, "/datetime_field", "created_at")
-	registerModel[IntSliceField](router, db, "/int_slice_field", "created_at")
-	registerModel[NullStringField](router, db, "/null_string_field", "created_at")
+	registerModel[DurationModel](router, dbResolver, gormDB, "/duration_field", "created_at")
+	registerModel[DateTimeModel](router, dbResolver, gormDB, "/datetime_field", "created_at")
+	registerModel[IntSliceModel](router, dbResolver, gormDB, "/int_slice_field", "created_at")
+	registerModel[NullStringModel](router, dbResolver, gormDB, "/null_string_field", "created_at")
 
 	logrus.Fatal(router.Run(fmt.Sprintf(":%d", *serverPort)))
 }
 
 func registerModel[Model any](
 	router *gin.Engine,
-	db *gorm.DB,
+	dbResolver db.Resolver,
+	gormDB *gorm.DB,
 	prefix string,
 	orderBy string,
 ) {
-	serializer := serializers.NewValidatingSerializer[Model](
-		serializers.NewModelSerializer[Model](nil)).WithValidator(
-		&serializers.GoPlaygroundValidator[Model]{},
-	)
+	serializer := serializers.NewModelSerializer[Model](nil)
 
-	views.NewListCreateModelView[Model](prefix, db).WithSerializer(
+	views.NewListCreateModelView[Model](prefix, dbResolver).WithSerializer(
 		serializer,
 	).WithOrderBy(fmt.Sprintf("%s ASC", orderBy)).Register(router)
 
-	views.NewRetrieveUpdateDeleteModelView[Model](prefix+"/:id", db).WithSerializer(
+	views.NewRetrieveUpdateDeleteModelView[Model](prefix+"/:id", dbResolver).WithSerializer(
 		serializer,
 	).Register(router)
 
 	var entity Model
-	if migrateErr := db.AutoMigrate(&entity); migrateErr != nil {
+	if migrateErr := gormDB.AutoMigrate(&entity); migrateErr != nil {
 		logrus.Fatalf("Error migrating database: %s", migrateErr)
 	}
 }

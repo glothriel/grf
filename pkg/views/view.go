@@ -4,7 +4,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glothriel/gin-rest-framework/pkg/authentication"
+	"github.com/glothriel/grf/pkg/authentication"
+	"github.com/glothriel/grf/pkg/grfctx"
 )
 
 type View struct {
@@ -15,6 +16,7 @@ type View struct {
 	deleteHandler func(*gin.Context)
 	patchHandler  func(*gin.Context)
 	authenticator authentication.Authentication
+	context       *grfctx.Context
 }
 
 func (v *View) Get(h func(*gin.Context)) *View {

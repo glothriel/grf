@@ -1,4 +1,4 @@
-module github.com/glothriel/gin-rest-framework
+module github.com/glothriel/grf
 
 go 1.20
 
