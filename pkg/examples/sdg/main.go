@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/db"
 	"github.com/glothriel/grf/pkg/fields"
+	"github.com/glothriel/grf/pkg/grfctx"
 	"github.com/glothriel/grf/pkg/models"
 	"github.com/glothriel/grf/pkg/serializers"
 	"github.com/glothriel/grf/pkg/views"
@@ -47,9 +48,9 @@ func main() {
 	views.NewListCreateModelView[SDGConfig]("/sdg", dbResolver).WithSerializer(
 		serializer,
 	).WithFilter(
-		func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
-			if ctx.Query("api_key") != "" {
-				return db.Where("api_key LIKE ?", fmt.Sprintf("%%%s%%", ctx.Query("api_key")))
+		func(ctx *grfctx.Context, db *gorm.DB) *gorm.DB {
+			if ctx.Gin.Query("api_key") != "" {
+				return db.Where("api_key LIKE ?", fmt.Sprintf("%%%s%%", ctx.Gin.Query("api_key")))
 			}
 			return db
 		},

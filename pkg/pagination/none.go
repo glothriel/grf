@@ -1,13 +1,13 @@
 package pagination
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/glothriel/grf/pkg/grfctx"
 	"gorm.io/gorm"
 )
 
 type NoPagination struct{}
 
-func (p *NoPagination) Apply(_ *gin.Context, db *gorm.DB) *gorm.DB {
+func (p *NoPagination) Apply(_ *grfctx.Context, db *gorm.DB) *gorm.DB {
 	return db
 }
 

@@ -13,14 +13,14 @@ import (
 	"gorm.io/gorm"
 )
 
-type QueryModFunc func(*gin.Context, *gorm.DB) *gorm.DB
+type QueryModFunc func(*grfctx.Context, *gorm.DB) *gorm.DB
 
-func QueryModPassThrough(ctx *gin.Context, db *gorm.DB) *gorm.DB {
+func QueryModPassThrough(ctx *grfctx.Context, db *gorm.DB) *gorm.DB {
 	return db
 }
 
 func QueryModOrderBy(order string) QueryModFunc {
-	return func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
+	return func(ctx *grfctx.Context, db *gorm.DB) *gorm.DB {
 		return db.Order(order)
 	}
 }
@@ -33,12 +33,10 @@ type ModelViewSettings[Model any] struct {
 	CreateSerializer   serializers.Serializer
 	DeleteSerializer   serializers.Serializer
 
-	CtxFactory *grfctx.ContextFactory
-
 	Pagination      pagination.Pagination
 	Filter          QueryModFunc
 	OrderBy         QueryModFunc
-	IDFunc          func(*gin.Context) any
+	IDFunc          func(*grfctx.Context) any
 	DBResolver      db.Resolver
 	FieldTypeMapper *types.FieldTypeMapper
 	FieldTypes      map[string]string
@@ -55,11 +53,10 @@ func NewDefaultModelViewContext[Model any](dbResolver db.Resolver) ModelViewSett
 		IDFunc:            IDFromQueryParamIDFunc[Model],
 		FieldTypeMapper:   types.DefaultFieldTypeMapper(),
 		FieldTypes:        serializers.DetectAttributes(m),
-		CtxFactory:        grfctx.NewContextFactory(dbResolver),
 	}
 }
 
-type HandlerFunc func(ctx *grfctx.Context, dbSession *gorm.DB)
+type HandlerFunc func(ctx *grfctx.Context)
 type HandlerFactoryFunc[Model any] func(ModelViewSettings[Model]) HandlerFunc
 
 type ModelView[Model any] struct {
@@ -75,12 +72,12 @@ type ModelView[Model any] struct {
 
 func (v *ModelView[Model]) toGinHandler(inner HandlerFunc) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		grfCtx, grfCtxErr := v.Settings.CtxFactory.New(ctx)
+		grfCtx, grfCtxErr := grfctx.New(ctx)
 		if grfCtxErr != nil {
 			WriteError(ctx, grfCtxErr)
 			return
 		}
-		inner(grfCtx, grfctx.NewDBSession[Model](grfCtx))
+		inner(grfCtx)
 	}
 }
 
@@ -139,7 +136,7 @@ func (v *ModelView[Model]) WithPagination(pagination pagination.Pagination) *Mod
 	return v
 }
 
-func (v *ModelView[Model]) WithFilter(filter func(*gin.Context, *gorm.DB) *gorm.DB) *ModelView[Model] {
+func (v *ModelView[Model]) WithFilter(filter QueryModFunc) *ModelView[Model] {
 	v.Settings.Filter = filter
 	return v
 }
@@ -186,7 +183,7 @@ func (v *ModelView[Model]) WithDeleteHandlerFactoryFunc(factory HandlerFactoryFu
 
 func NewListCreateModelView[Model any](path string, dbResolver db.Resolver) *ModelView[Model] {
 	return &ModelView[Model]{
-		View:       NewView(path),
+		View:       NewView(path).AddMiddleware(db.CtxSetGorm(dbResolver)),
 		Settings:   NewDefaultModelViewContext[Model](dbResolver),
 		ListFunc:   ListModelFunc[Model],
 		CreateFunc: CreateModelFunc[Model],
@@ -195,7 +192,7 @@ func NewListCreateModelView[Model any](path string, dbResolver db.Resolver) *Mod
 
 func NewRetrieveUpdateDeleteModelView[Model any](path string, dbResolver db.Resolver) *ModelView[Model] {
 	return &ModelView[Model]{
-		View:         NewView(path),
+		View:         NewView(path).AddMiddleware(db.CtxSetGorm(dbResolver)),
 		Settings:     NewDefaultModelViewContext[Model](dbResolver),
 		RetrieveFunc: RetrieveModelFunc[Model],
 		UpdateFunc:   UpdateModelFunc[Model],
@@ -203,6 +200,6 @@ func NewRetrieveUpdateDeleteModelView[Model any](path string, dbResolver db.Reso
 	}
 }
 
-func IDFromQueryParamIDFunc[Model any](ctx *gin.Context) any {
-	return ctx.Param("id")
+func IDFromQueryParamIDFunc[Model any](ctx *grfctx.Context) any {
+	return ctx.Gin.Param("id")
 }

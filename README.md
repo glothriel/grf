@@ -51,6 +51,7 @@ Other gunicorn flag variants had even lower performance.
 * Add support for setting up middleware (before/after request is executed), including using Gin middlewares directly
 * Improve unit test coverage
 * Documentation portal
+* Turn off passthrough if the serializer field type cannot be deduced on startup
 * Add support for complex to implement types:
     * time.Time
     * time.Duration
@@ -65,4 +66,6 @@ Other gunicorn flag variants had even lower performance.
 * Add support for permissions (authorization)
 * Add support for caches
 * Add support for throttling
+* Add support for output formatters
+* Add support for non-JSON types
 * Add testing utils
