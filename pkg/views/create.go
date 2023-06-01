@@ -3,13 +3,13 @@ package views
 import (
 	"github.com/gin-gonic/gin"
 
+	"github.com/glothriel/grf/pkg/db"
 	"github.com/glothriel/grf/pkg/grfctx"
 	"github.com/glothriel/grf/pkg/models"
-	"gorm.io/gorm"
 )
 
 func CreateModelFunc[Model any](settings ModelViewSettings[Model]) HandlerFunc {
-	return func(ctx *grfctx.Context, dbSession *gorm.DB) {
+	return func(ctx *grfctx.Context) {
 		var rawElement map[string]any
 		if err := ctx.Gin.ShouldBindJSON(&rawElement); err != nil {
 			ctx.Gin.JSON(400, gin.H{
@@ -34,7 +34,7 @@ func CreateModelFunc[Model any](settings ModelViewSettings[Model]) HandlerFunc {
 			WriteError(ctx.Gin, asModelErr)
 			return
 		}
-		createErr := dbSession.Create(&entity).Error
+		createErr := db.CtxNewQuery[Model](ctx).Create(&entity).Error
 		if createErr != nil {
 			WriteError(ctx.Gin, createErr)
 			return

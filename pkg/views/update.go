@@ -2,13 +2,13 @@ package views
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/glothriel/grf/pkg/db"
 	"github.com/glothriel/grf/pkg/grfctx"
 	"github.com/glothriel/grf/pkg/models"
-	"gorm.io/gorm"
 )
 
 func UpdateModelFunc[Model any](modelSettings ModelViewSettings[Model]) HandlerFunc {
-	return func(ctx *grfctx.Context, dbSession *gorm.DB) {
+	return func(ctx *grfctx.Context) {
 
 		var updates map[string]any
 		if err := ctx.Gin.ShouldBindJSON(&updates); err != nil {
@@ -32,13 +32,13 @@ func UpdateModelFunc[Model any](modelSettings ModelViewSettings[Model]) HandlerF
 			WriteError(ctx.Gin, asModelErr)
 			return
 		}
-		updateErr := dbSession.Model(&entity).Updates(&entity).Error
+		updateErr := db.CtxNewQuery[Model](ctx).Model(&entity).Updates(&entity).Error
 		if updateErr != nil {
 			WriteError(ctx.Gin, updateErr)
 			return
 		}
 		var updatedMap map[string]any
-		if err := grfctx.NewDBSession[Model](ctx).First(&updatedMap, "id = ?", modelSettings.IDFunc(ctx.Gin)).Error; err != nil {
+		if err := db.CtxNewQuery[Model](ctx).First(&updatedMap, "id = ?", modelSettings.IDFunc(ctx)).Error; err != nil {
 			ctx.Gin.JSON(404, gin.H{
 				"message": err.Error(),
 			})

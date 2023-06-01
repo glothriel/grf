@@ -16,7 +16,8 @@ type View struct {
 	deleteHandler func(*gin.Context)
 	patchHandler  func(*gin.Context)
 	authenticator authentication.Authentication
-	context       *grfctx.Context
+
+	middleware []gin.HandlerFunc
 }
 
 func (v *View) Get(h func(*gin.Context)) *View {
@@ -44,17 +45,36 @@ func (v *View) Patch(h func(*gin.Context)) *View {
 	return v
 }
 
+func (v *View) AddMiddleware(m HandlerFunc) *View {
+	v.middleware = append(v.middleware, func(c *gin.Context) {
+		grfCtx, grfCtxErr := grfctx.New(c)
+		if grfCtxErr != nil {
+			WriteError(c, grfCtxErr)
+			return
+		}
+		m(grfCtx)
+		c.Next()
+	})
+	return v
+}
+
+func (v *View) AddGinMiddleware(m ...gin.HandlerFunc) *View {
+	v.middleware = append(v.middleware)
+	return v
+}
+
 func (v *View) Authentication(a authentication.Authentication) *View {
 	v.authenticator = a
 	return v
 }
 
 func (v *View) Register(r *gin.Engine) {
-	r.GET(v.path, v.authenticated(v.getHandler))
-	r.POST(v.path, v.authenticated(v.postHandler))
-	r.PUT(v.path, v.authenticated(v.putHandler))
-	r.DELETE(v.path, v.authenticated(v.deleteHandler))
-	r.PATCH(v.path, v.authenticated(v.patchHandler))
+	rg := r.Group(v.path, v.middleware...)
+	rg.GET("", v.authenticated(v.getHandler))
+	rg.POST("", v.authenticated(v.postHandler))
+	rg.PUT("", v.authenticated(v.putHandler))
+	rg.DELETE("", v.authenticated(v.deleteHandler))
+	rg.PATCH("", v.authenticated(v.patchHandler))
 }
 
 func (v *View) authenticated(h gin.HandlerFunc) gin.HandlerFunc {
@@ -91,5 +111,7 @@ func NewView(path string) *View {
 		deleteHandler: defaultHandler,
 		patchHandler:  defaultHandler,
 		authenticator: &authentication.AnonymousUserAuthentication{},
+
+		middleware: []gin.HandlerFunc{},
 	}
 }

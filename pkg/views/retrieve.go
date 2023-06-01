@@ -2,16 +2,16 @@ package views
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/glothriel/grf/pkg/db"
 	"github.com/glothriel/grf/pkg/grfctx"
 	"github.com/glothriel/grf/pkg/models"
-	"gorm.io/gorm"
 )
 
 func RetrieveModelFunc[Model any](modelSettings ModelViewSettings[Model]) HandlerFunc {
-	return func(ctx *grfctx.Context, dbSession *gorm.DB) {
+	return func(ctx *grfctx.Context) {
 
 		var entity Model
-		if err := modelSettings.Filter(ctx.Gin, dbSession.First(&entity, "id = ?", modelSettings.IDFunc(ctx.Gin))).Error; err != nil {
+		if err := modelSettings.Filter(ctx, db.CtxNewQuery[Model](ctx).First(&entity, "id = ?", modelSettings.IDFunc(ctx))).Error; err != nil {
 			ctx.Gin.JSON(404, gin.H{
 				"message": err.Error(),
 			})
@@ -29,9 +29,7 @@ func RetrieveModelFunc[Model any](modelSettings ModelViewSettings[Model]) Handle
 		}
 		rawElement, toRawErr := effectiveSerializer.ToRepresentation(internalValue, ctx)
 		if toRawErr != nil {
-			ctx.Gin.JSON(500, gin.H{
-				"message": toRawErr.Error(),
-			})
+			WriteError(ctx.Gin, toRawErr)
 			return
 		}
 		ctx.Gin.JSON(200, rawElement)

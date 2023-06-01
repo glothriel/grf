@@ -2,17 +2,17 @@ package views
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/glothriel/grf/pkg/db"
 	"github.com/glothriel/grf/pkg/grfctx"
-	"gorm.io/gorm"
 )
 
 func ListModelFunc[Model any](modelSettings ModelViewSettings[Model]) HandlerFunc {
-	return func(ctx *grfctx.Context, dbSession *gorm.DB) {
+	return func(ctx *grfctx.Context) {
 
 		var entities []map[string]any
 		modelSettings.Pagination.Apply(
-			ctx.Gin,
-			modelSettings.OrderBy(ctx.Gin, modelSettings.Filter(ctx.Gin, dbSession)),
+			ctx,
+			modelSettings.OrderBy(ctx, modelSettings.Filter(ctx, db.CtxNewQuery[Model](ctx))),
 		).Find(&entities)
 		representationItems := []any{}
 		effectiveSerializer := modelSettings.ListSerializer
