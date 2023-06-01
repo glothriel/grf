@@ -4,8 +4,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/authentication"
 
-	"github.com/glothriel/grf/pkg/grfctx"
-
 	"github.com/glothriel/grf/pkg/db"
 	"github.com/glothriel/grf/pkg/pagination"
 	"github.com/glothriel/grf/pkg/serializers"
@@ -13,14 +11,14 @@ import (
 	"gorm.io/gorm"
 )
 
-type QueryModFunc func(*grfctx.Context, *gorm.DB) *gorm.DB
+type QueryModFunc func(*gin.Context, *gorm.DB) *gorm.DB
 
-func QueryModPassThrough(ctx *grfctx.Context, db *gorm.DB) *gorm.DB {
+func QueryModPassThrough(ctx *gin.Context, db *gorm.DB) *gorm.DB {
 	return db
 }
 
 func QueryModOrderBy(order string) QueryModFunc {
-	return func(ctx *grfctx.Context, db *gorm.DB) *gorm.DB {
+	return func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
 		return db.Order(order)
 	}
 }
@@ -36,7 +34,7 @@ type ModelViewSettings[Model any] struct {
 	Pagination      pagination.Pagination
 	Filter          QueryModFunc
 	OrderBy         QueryModFunc
-	IDFunc          func(*grfctx.Context) any
+	IDFunc          func(*gin.Context) any
 	DBResolver      db.Resolver
 	FieldTypeMapper *types.FieldTypeMapper
 	FieldTypes      map[string]string
@@ -56,8 +54,7 @@ func NewDefaultModelViewContext[Model any](dbResolver db.Resolver) ModelViewSett
 	}
 }
 
-type HandlerFunc func(ctx *grfctx.Context)
-type HandlerFactoryFunc[Model any] func(ModelViewSettings[Model]) HandlerFunc
+type HandlerFactoryFunc[Model any] func(ModelViewSettings[Model]) gin.HandlerFunc
 
 type ModelView[Model any] struct {
 	View     *View
@@ -70,33 +67,22 @@ type ModelView[Model any] struct {
 	DeleteFunc   HandlerFactoryFunc[Model]
 }
 
-func (v *ModelView[Model]) toGinHandler(inner HandlerFunc) gin.HandlerFunc {
-	return func(ctx *gin.Context) {
-		grfCtx, grfCtxErr := grfctx.New(ctx)
-		if grfCtxErr != nil {
-			WriteError(ctx, grfCtxErr)
-			return
-		}
-		inner(grfCtx)
-	}
-}
-
 func (v *ModelView[Model]) Register(r *gin.Engine) {
 	if v.ListFunc != nil {
-		v.View.Get(v.toGinHandler(v.ListFunc(v.Settings)))
+		v.View.Get(v.ListFunc(v.Settings))
 	}
 	if v.CreateFunc != nil {
-		v.View.Post(v.toGinHandler(v.CreateFunc(v.Settings)))
+		v.View.Post(v.CreateFunc(v.Settings))
 	}
 	if v.RetrieveFunc != nil {
-		v.View.Get(v.toGinHandler(v.RetrieveFunc(v.Settings)))
+		v.View.Get(v.RetrieveFunc(v.Settings))
 	}
 	if v.UpdateFunc != nil {
-		v.View.Put(v.toGinHandler(v.UpdateFunc(v.Settings)))
-		v.View.Patch(v.toGinHandler(v.UpdateFunc(v.Settings)))
+		v.View.Put(v.UpdateFunc(v.Settings))
+		v.View.Patch(v.UpdateFunc(v.Settings))
 	}
 	if v.DeleteFunc != nil {
-		v.View.Delete(v.toGinHandler(v.DeleteFunc(v.Settings)))
+		v.View.Delete(v.DeleteFunc(v.Settings))
 	}
 	v.View.Register(r)
 }
@@ -183,7 +169,7 @@ func (v *ModelView[Model]) WithDeleteHandlerFactoryFunc(factory HandlerFactoryFu
 
 func NewListCreateModelView[Model any](path string, dbResolver db.Resolver) *ModelView[Model] {
 	return &ModelView[Model]{
-		View:       NewView(path).AddMiddleware(db.CtxSetGorm(dbResolver)),
+		View:       NewView(path, dbResolver),
 		Settings:   NewDefaultModelViewContext[Model](dbResolver),
 		ListFunc:   ListModelFunc[Model],
 		CreateFunc: CreateModelFunc[Model],
@@ -192,7 +178,7 @@ func NewListCreateModelView[Model any](path string, dbResolver db.Resolver) *Mod
 
 func NewRetrieveUpdateDeleteModelView[Model any](path string, dbResolver db.Resolver) *ModelView[Model] {
 	return &ModelView[Model]{
-		View:         NewView(path).AddMiddleware(db.CtxSetGorm(dbResolver)),
+		View:         NewView(path, dbResolver),
 		Settings:     NewDefaultModelViewContext[Model](dbResolver),
 		RetrieveFunc: RetrieveModelFunc[Model],
 		UpdateFunc:   UpdateModelFunc[Model],
@@ -200,6 +186,6 @@ func NewRetrieveUpdateDeleteModelView[Model any](path string, dbResolver db.Reso
 	}
 }
 
-func IDFromQueryParamIDFunc[Model any](ctx *grfctx.Context) any {
-	return ctx.Gin.Param("id")
+func IDFromQueryParamIDFunc[Model any](ctx *gin.Context) any {
+	return ctx.Param("id")
 }

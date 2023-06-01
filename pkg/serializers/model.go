@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/fields"
-	"github.com/glothriel/grf/pkg/grfctx"
 	"github.com/glothriel/grf/pkg/models"
 	"github.com/glothriel/grf/pkg/types"
 	"github.com/sirupsen/logrus"
@@ -18,7 +18,7 @@ type ModelSerializer[Model any] struct {
 	FieldTypeMapper *types.FieldTypeMapper
 }
 
-func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any, ctx *grfctx.Context) (models.InternalValue, error) {
+func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any, ctx *gin.Context) (models.InternalValue, error) {
 	intVMap := make(map[string]any)
 	superfluousFields := make([]string, 0)
 	for k := range raw {
@@ -50,7 +50,7 @@ func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any, ctx *grfctx
 	return intVMap, nil
 }
 
-func (s *ModelSerializer[Model]) ToRepresentation(intVal models.InternalValue, ctx *grfctx.Context) (Representation, error) {
+func (s *ModelSerializer[Model]) ToRepresentation(intVal models.InternalValue, ctx *gin.Context) (Representation, error) {
 	raw := make(map[string]any)
 	for _, field := range s.Fields {
 		if !field.Readable {
@@ -68,7 +68,7 @@ func (s *ModelSerializer[Model]) ToRepresentation(intVal models.InternalValue, c
 	return raw, nil
 }
 
-func (s *ModelSerializer[Model]) FromDB(raw map[string]any, ctx *grfctx.Context) (models.InternalValue, error) {
+func (s *ModelSerializer[Model]) FromDB(raw map[string]any, ctx *gin.Context) (models.InternalValue, error) {
 	intVMap := make(models.InternalValue)
 	for k := range raw {
 		field, ok := s.Fields[k]
@@ -85,7 +85,7 @@ func (s *ModelSerializer[Model]) FromDB(raw map[string]any, ctx *grfctx.Context)
 	return intVMap, nil
 }
 
-func (s *ModelSerializer[Model]) Validate(intVal models.InternalValue, ctx *grfctx.Context) error {
+func (s *ModelSerializer[Model]) Validate(intVal models.InternalValue, ctx *gin.Context) error {
 	return nil
 }
 
@@ -168,13 +168,13 @@ func NewModelSerializer[Model any](ftm *types.FieldTypeMapper) *ModelSerializer[
 }
 
 func ConvertFuncToRepresentationFuncAdapter[Model any](cf types.ConvertFunc) fields.RepresentationFunc[Model] {
-	return func(intVal models.InternalValue, name string, ctx *grfctx.Context) (any, error) {
+	return func(intVal models.InternalValue, name string, ctx *gin.Context) (any, error) {
 		return cf(intVal[name])
 	}
 }
 
 func ConvertFuncToInternalValueFuncAdapter(cf types.ConvertFunc) fields.InternalValueFunc {
-	return func(reprModel map[string]any, name string, ctx *grfctx.Context) (any, error) {
+	return func(reprModel map[string]any, name string, ctx *gin.Context) (any, error) {
 		return cf(reprModel[name])
 	}
 }

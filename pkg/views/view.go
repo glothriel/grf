@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/authentication"
-	"github.com/glothriel/grf/pkg/grfctx"
+	"github.com/glothriel/grf/pkg/db"
 )
 
 type View struct {
@@ -45,21 +45,8 @@ func (v *View) Patch(h func(*gin.Context)) *View {
 	return v
 }
 
-func (v *View) AddMiddleware(m HandlerFunc) *View {
-	v.middleware = append(v.middleware, func(c *gin.Context) {
-		grfCtx, grfCtxErr := grfctx.New(c)
-		if grfCtxErr != nil {
-			WriteError(c, grfCtxErr)
-			return
-		}
-		m(grfCtx)
-		c.Next()
-	})
-	return v
-}
-
-func (v *View) AddGinMiddleware(m ...gin.HandlerFunc) *View {
-	v.middleware = append(v.middleware)
+func (v *View) AddMiddleware(m ...gin.HandlerFunc) *View {
+	v.middleware = append(v.middleware, m...)
 	return v
 }
 
@@ -96,7 +83,7 @@ func (v *View) authenticated(h gin.HandlerFunc) gin.HandlerFunc {
 	}
 }
 
-func NewView(path string) *View {
+func NewView(path string, dbResolver db.Resolver) *View {
 	defaultHandler := func(ctx *gin.Context) {
 		ctx.JSON(http.StatusMethodNotAllowed, gin.H{
 			"message": "Not allowed",
@@ -112,6 +99,8 @@ func NewView(path string) *View {
 		patchHandler:  defaultHandler,
 		authenticator: &authentication.AnonymousUserAuthentication{},
 
-		middleware: []gin.HandlerFunc{},
+		middleware: []gin.HandlerFunc{
+			db.CtxSetGorm(dbResolver),
+		},
 	}
 }

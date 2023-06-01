@@ -10,7 +10,7 @@ func main(){
 			NewModelSerializer[Foo]().WithField(
 				"foo_field",
 				function(f *fields.F){
-					f.toRepresentationFunc = func(fv interface{}, grfCtx *grfctx.Context){
+					f.toRepresentationFunc = func(fv interface{}, grfCtx *gin.Context){
 
 					}
 				}

@@ -1,19 +1,19 @@
 package db
 
 import (
-	"github.com/glothriel/grf/pkg/grfctx"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 type Resolver interface {
-	Resolve(*grfctx.Context) (*gorm.DB, error)
+	Resolve(*gin.Context) (*gorm.DB, error)
 }
 
 type StaticResolver struct {
 	Db *gorm.DB
 }
 
-func (r *StaticResolver) Resolve(_ *grfctx.Context) (*gorm.DB, error) {
+func (r *StaticResolver) Resolve(_ *gin.Context) (*gorm.DB, error) {
 	return r.Db, nil
 }
 

@@ -3,7 +3,7 @@ package pagination
 import (
 	"strconv"
 
-	"github.com/glothriel/grf/pkg/grfctx"
+	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
@@ -11,17 +11,17 @@ import (
 type LimitOffsetPagination struct {
 }
 
-func (p *LimitOffsetPagination) Apply(c *grfctx.Context, db *gorm.DB) *gorm.DB {
-	if c.Gin.Query("limit") != "" {
-		limit, conversionErr := strconv.Atoi(c.Gin.Query("limit"))
+func (p *LimitOffsetPagination) Apply(c *gin.Context, db *gorm.DB) *gorm.DB {
+	if c.Query("limit") != "" {
+		limit, conversionErr := strconv.Atoi(c.Query("limit"))
 		if conversionErr != nil {
 			logrus.Debug("Failed to convert limit to int in LimitOffsetPagination")
 			return db
 		}
 		db = db.Limit(limit)
 	}
-	if c.Gin.Query("offset") != "" {
-		offset, conversionErr := strconv.Atoi(c.Gin.Query("offset"))
+	if c.Query("offset") != "" {
+		offset, conversionErr := strconv.Atoi(c.Query("offset"))
 		if conversionErr != nil {
 			logrus.Debug("Failed to convert offset to int in LimitOffsetPagination")
 			return db

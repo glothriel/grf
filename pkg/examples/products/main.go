@@ -6,7 +6,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/db"
-	"github.com/glothriel/grf/pkg/grfctx"
 	"github.com/glothriel/grf/pkg/models"
 	"github.com/glothriel/grf/pkg/serializers"
 	"github.com/glothriel/grf/pkg/views"
@@ -52,9 +51,9 @@ func main() {
 		serializers.NewModelSerializer[Product](nil).
 			WithModelFields([]string{"id", "name"}),
 	).WithFilter(
-		func(ctx *grfctx.Context, db *gorm.DB) *gorm.DB {
-			if ctx.Gin.Query("name") != "" {
-				return db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", ctx.Gin.Query("name")))
+		func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
+			if ctx.Query("name") != "" {
+				return db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", ctx.Query("name")))
 			}
 			return db
 		},
