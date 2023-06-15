@@ -45,22 +45,22 @@ Other gunicorn flag variants had even lower performance.
 
 # Roadmap
 
-
-* Add rich context to serializer and fields (ability to extract gin request data directly from Field)
-    * Unlocks creating fields based on non-body data, gin context, etc - like `CurrentlyLoggedInUser` from Authorization header or so
-* Add support for setting up middleware (before/after request is executed), including using Gin middlewares directly
+* ~~Add rich context to serializer and fields (ability to extract gin request data directly from Field)~~
+    * ~~Unlocks creating fields based on non-body data, gin context, etc - like `CurrentlyLoggedInUser` from Authorization header or so~~
+* ~~Add support for setting up middleware (fore/after request is executed), including using Gin middlewares directly~~
+* ~~Turn off passthrough if the serializer field type cannot be deduced on startup~~
 * Improve unit test coverage
 * Documentation portal
-* Turn off passthrough if the serializer field type cannot be deduced on startup
 * Add support for complex to implement types:
     * time.Time
     * time.Duration
-    * list<int>
+    * `list<int>`
     * pointer fields, for example `*string`
     * sql.Null.* fields, for example `sql.NullString`
     * JSON fields, both as text (sqlite) and as dedicated columns (eg. Postgres)
 * Add proper support for custom validators
 * Add support for model relations
+* Add support for viewsets
 * Add support for authentication
 * Add support for complex pagination implementations
 * Add support for permissions (authorization)

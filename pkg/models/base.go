@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mitchellh/mapstructure"
-	uuid "github.com/satori/go.uuid"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
@@ -23,7 +23,7 @@ type BaseModel struct {
 
 // BeforeCreate will set a UUID rather than numeric ID.
 func (base *BaseModel) BeforeCreate(tx *gorm.DB) error {
-	base.ID = uuid.NewV4()
+	base.ID = uuid.New()
 	return nil
 }
 

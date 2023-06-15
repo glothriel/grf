@@ -63,27 +63,37 @@ type DurationModel struct {
 
 type StringSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[string, StringSliceModel] `json:"value" gorm:"column:value;type:text"`
+	Value fields.SliceModelField[string] `json:"value" gorm:"column:value;type:text"`
 }
 
 type IntSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[int, IntSliceModel] `json:"value" gorm:"column:value;type:text"`
+	Value fields.SliceModelField[int] `json:"value" gorm:"column:value;type:text"`
 }
 
 type FloatSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[float64, FloatSliceModel] `json:"value" gorm:"column:value;type:text"`
+	Value fields.SliceModelField[float64] `json:"value" gorm:"column:value;type:text"`
 }
 
 type MapSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[map[string]any, MapSliceModel] `json:"value" gorm:"column:value;type:text"`
+	Value fields.SliceModelField[map[string]any] `json:"value" gorm:"column:value;type:text"`
 }
 
 type BoolSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[bool, BoolSliceModel] `json:"value" gorm:"column:value;type:text"`
+	Value fields.SliceModelField[bool] `json:"value" gorm:"column:value;type:text"`
+}
+
+type AnySliceModel struct {
+	models.BaseModel
+	Value fields.SliceModelField[any] `json:"value" gorm:"column:value;type:text"`
+}
+
+type TwoDStringSliceModel struct {
+	models.BaseModel
+	Value fields.SliceModelField[fields.SliceModelField[string]] `json:"value" gorm:"column:value;type:text"`
 }
 
 func main() {
@@ -100,7 +110,7 @@ func main() {
 
 	registerModel[BoolModel](router, dbResolver, gormDB, "/bool_field", "created_at")
 	registerModel[StringModel](router, dbResolver, gormDB, "/string_field", "created_at")
-	registerModel[StringPtrModel](router, dbResolver, gormDB, "/string_pointer_field", "created_at")
+	// registerModel[StringPtrModel](router, dbResolver, gormDB, "/string_pointer_field", "created_at")
 	registerModel[IntModel](router, dbResolver, gormDB, "/int_field", "created_at")
 	registerModel[UintModel](router, dbResolver, gormDB, "/uint_field", "created_at")
 	registerModel[FloatModel](router, dbResolver, gormDB, "/float_field", "created_at")
@@ -109,10 +119,14 @@ func main() {
 	registerModel[MapSliceModel](router, dbResolver, gormDB, "/map_slice_field", "created_at")
 	registerModel[BoolSliceModel](router, dbResolver, gormDB, "/bool_slice_field", "created_at")
 
-	registerModel[DurationModel](router, dbResolver, gormDB, "/duration_field", "created_at")
+	// registerModel[DurationModel](router, dbResolver, gormDB, "/duration_field", "created_at")
 	registerModel[DateTimeModel](router, dbResolver, gormDB, "/datetime_field", "created_at")
 	registerModel[IntSliceModel](router, dbResolver, gormDB, "/int_slice_field", "created_at")
-	registerModel[NullStringModel](router, dbResolver, gormDB, "/null_string_field", "created_at")
+	// registerModel[NullStringModel](router, dbResolver, gormDB, "/null_string_field", "created_at")
+
+	registerModel[AnySliceModel](router, dbResolver, gormDB, "/any_slice_field", "created_at")
+
+	registerModel[TwoDStringSliceModel](router, dbResolver, gormDB, "/two_d_string_slice_field", "created_at")
 
 	logrus.Fatal(router.Run(fmt.Sprintf(":%d", *serverPort)))
 }
