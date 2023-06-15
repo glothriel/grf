@@ -16,8 +16,11 @@ jobs:
       run: |
         go mod download
     - name: Run Unit tests
-      run: go test -race -coverprofile=coverage.txt -covermode=atomic -v -coverpkg=./.. ./...
+      run: go test -v -coverpkg=./... -race -coverprofile=coverage.out -covermode=atomic ./...
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.out
+        fail_ci_if_error: true
       env: 
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
