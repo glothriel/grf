@@ -8,7 +8,6 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/gookit/validate v1.4.6
 	github.com/mitchellh/mapstructure v1.5.0
-	github.com/satori/go.uuid v1.2.0
 	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.2
 	github.com/stretchr/testify v1.8.2

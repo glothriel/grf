@@ -10,32 +10,33 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type RepresentationFunc[Model any] func(models.InternalValue, string, *gin.Context) (any, error)
+type RepresentationFunc func(models.InternalValue, string, *gin.Context) (any, error)
 type InternalValueFunc func(map[string]any, string, *gin.Context) (any, error)
 
 type Field[Model any] struct {
-	ItsName            string
-	RepresentationFunc RepresentationFunc[Model]
-	InternalValueFunc  InternalValueFunc
-	FromDBFunc         InternalValueFunc
-	Readable           bool
-	Writable           bool
+	name               string
+	representationFunc RepresentationFunc
+	internalValueFunc  InternalValueFunc
+	fromDBFunc         InternalValueFunc
+
+	Readable bool
+	Writable bool
 }
 
 func (s *Field[Model]) Name() string {
-	return s.ItsName
+	return s.name
 }
 
 func (s *Field[Model]) ToRepresentation(intVal models.InternalValue, ctx *gin.Context) (any, error) {
-	return s.RepresentationFunc(intVal, s.ItsName, ctx)
+	return s.representationFunc(intVal, s.name, ctx)
 }
 
 func (s *Field[Model]) ToInternalValue(reprModel map[string]any, ctx *gin.Context) (any, error) {
-	return s.InternalValueFunc(reprModel, s.ItsName, ctx)
+	return s.internalValueFunc(reprModel, s.name, ctx)
 }
 
 func (s *Field[Model]) FromDB(reprModel map[string]any, ctx *gin.Context) (any, error) {
-	return s.FromDBFunc(reprModel, s.ItsName, ctx)
+	return s.fromDBFunc(reprModel, s.name, ctx)
 }
 
 func (s *Field[Model]) ReadOnly() *Field[Model] {
@@ -56,37 +57,33 @@ func (s *Field[Model]) ReadWrite() *Field[Model] {
 	return s
 }
 
-func (s *Field[Model]) WithRepresentationFunc(f RepresentationFunc[Model]) *Field[Model] {
-	s.RepresentationFunc = f
+func (s *Field[Model]) WithRepresentationFunc(f RepresentationFunc) *Field[Model] {
+	s.representationFunc = f
 	return s
 }
 
 func (s *Field[Model]) WithInternalValueFunc(f InternalValueFunc) *Field[Model] {
-	s.InternalValueFunc = f
+	s.internalValueFunc = f
 	return s
 }
 
 func (s *Field[Model]) WithFromDBFunc(f InternalValueFunc) *Field[Model] {
-	s.FromDBFunc = f
+	s.fromDBFunc = f
 	return s
 }
 
 func NewField[Model any](name string) *Field[Model] {
 	return &Field[Model]{
-		ItsName: name,
-		RepresentationFunc: func(intVal models.InternalValue, name string, ctx *gin.Context) (any, error) {
+		name: name,
+		representationFunc: func(intVal models.InternalValue, name string, ctx *gin.Context) (any, error) {
 			return intVal[name], nil
 		},
-		FromDBFunc:        SQLScannerOrPassthrough[Model](),
-		InternalValueFunc: InternalValuePassthrough(),
-		Readable:          true,
-		Writable:          true,
-	}
-}
-
-func InternalValuePassthrough() InternalValueFunc {
-	return func(reprModel map[string]any, name string, ctx *gin.Context) (any, error) {
-		return reprModel[name], nil
+		fromDBFunc: SQLScannerOrPassthrough[Model](),
+		internalValueFunc: func(reprModel map[string]any, name string, ctx *gin.Context) (any, error) {
+			return reprModel[name], nil
+		},
+		Readable: true,
+		Writable: true,
 	}
 }
 
@@ -108,16 +105,9 @@ func SQLScannerOrPassthrough[Model any]() func(map[string]any, string, *gin.Cont
 	}
 
 	return func(reprModel map[string]any, name string, ctx *gin.Context) (any, error) {
-		reflectedInstance := reflect.New(fieldBlueprints[name])
+		reflectedInstance := reflect.New(fieldBlueprints[name]).Interface()
 
-		var realFieldValue any
-		if reflectedInstance.CanAddr() {
-			realFieldValue = reflectedInstance.Addr().Interface()
-		} else {
-			realFieldValue = reflectedInstance.Interface()
-		}
-
-		scanner, ok := realFieldValue.(sql.Scanner)
+		scanner, ok := reflectedInstance.(sql.Scanner)
 		if !ok {
 			logrus.Debugf("Field `%s` is not a sql.Scanner, returning value as is", name)
 			return reprModel[name], nil
@@ -127,6 +117,7 @@ func SQLScannerOrPassthrough[Model any]() func(map[string]any, string, *gin.Cont
 		if scanErr != nil {
 			return nil, fmt.Errorf("could not convert field from db `%s`: %s", name, scanErr)
 		}
-		return scanner, nil
+
+		return reflect.ValueOf(scanner).Elem().Interface(), nil
 	}
 }

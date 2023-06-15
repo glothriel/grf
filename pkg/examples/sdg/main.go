@@ -19,12 +19,12 @@ type SDGConfig struct {
 	models.BaseModel
 
 	Enabled     bool   `json:"enabled" validate:"required"`
-	Integration string `json:"integration" gorm:"type:text;column:integration" validate:"required"` // FIXME enum
+	Integration string `json:"integration" gorm:"type:TEXT CHECK(integration IN ('production', 'development'));column:integration" validate:"oneof=production development"` // FIXME enum
 	ApiKey      string `json:"api_key" gorm:"column:api_key" validate:"required"`
 
 	// go-playground validator doesn't support bools - workaround is to remove required and set default value
-	UrlFilter   bool                                      `json:"url_filter" gorm:"default:false"`
-	UrlContains fields.SliceModelField[string, SDGConfig] `json:"url_contains" gorm:"type:text"`
+	UrlFilter   bool                           `json:"url_filter" gorm:"default:false"`
+	UrlContains fields.SliceModelField[string] `json:"url_contains" gorm:"type:text"`
 }
 
 func main() {
@@ -46,13 +46,8 @@ func main() {
 
 	views.NewListCreateModelView[SDGConfig]("/sdg", dbResolver).WithSerializer(
 		serializer,
-	).WithFilter(
-		func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
-			if ctx.Query("api_key") != "" {
-				return db.Where("api_key LIKE ?", fmt.Sprintf("%%%s%%", ctx.Query("api_key")))
-			}
-			return db
-		},
+	).WithListSerializer(
+		serializers.NewModelSerializer[SDGConfig](nil).WithModelFields([]string{"id", "enabled", "integration"}),
 	).Register(router)
 
 	views.NewRetrieveUpdateDeleteModelView[SDGConfig]("/sdg/:id", dbResolver).WithSerializer(

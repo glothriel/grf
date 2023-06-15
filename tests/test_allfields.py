@@ -531,24 +531,64 @@ ENDPOINTS = (
             ),
         ),
     ),
-)
-
-
-print(
-    list(
-        chain.from_iterable(
-            [
-                [
-                    (
-                        e.path,
-                        case,
-                    )
-                    for case in e.create_cases
-                ]
-                for e in ENDPOINTS
-            ]
-        )
-    )
+    FieldEndpoint(
+        path="/any_slice_field",
+        create_cases=(
+            RequestTestCase(
+                request={"value": [True, "1", 2, 3.45]},
+                expected_status=201,
+                expected_response={"value": [True, "1", 2, 3.45]},
+            ),
+            RequestTestCase(
+                request={"value": [1, 2, 3]},
+                expected_status=201,
+            ),
+            RequestTestCase(
+                request={"value": [{"foo": "bar"}, {"bar": "baz"}, 1, True]},
+                expected_status=201,
+                expected_response={"value": [{"foo": "bar"}, {"bar": "baz"}, 1, True]},
+            ),
+            RequestTestCase(
+                request={"value": ["true", "false"]},
+                expected_status=201,
+            ),
+            RequestTestCase(
+                request={"value": {"foo": "bar"}},
+                expected_status=400,
+            ),
+            RequestTestCase(
+                request={"value": True},
+                expected_status=400,
+            ),
+            RequestTestCase(
+                request={"value": False},
+                expected_status=400,
+            ),
+            RequestTestCase(
+                request={"value": "ads"},
+                expected_status=400,
+            ),
+            RequestTestCase(
+                request={"value": 1},
+                expected_status=400,
+            ),
+            RequestTestCase(
+                request={"value": 1.23},
+                expected_status=400,
+            ),
+        ),
+    ),
+    FieldEndpoint(
+        path="/two_d_string_slice_field",
+        create_cases=(
+            RequestTestCase(
+                skip="2D slices are not yet supported",
+                request={"value": [["hello", "world"], ["foo", "bar"]]},
+                expected_status=201,
+                expected_response={"value": [["hello", "world"], ["foo", "bar"]]},
+            ),
+        ),
+    ),
 )
 
 

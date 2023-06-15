@@ -6,69 +6,104 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-type MockModel struct {
-	SomeItems []any `json:"some_items" gorm:"type:text"`
-}
-
-func InternalValueCase[Model any, TestedType any](t *testing.T, passedValue any, expectedValue any) {
-	baseField := NewField[Model]("some_items")
-	field := SliceModelField[TestedType, Model]{}
-	field.Update(baseField)
-
-	internalValue, toInternalValueErr := baseField.ToInternalValue(map[string]any{
-		"some_items": passedValue,
-	}, nil)
-
-	assert.NoError(t, toInternalValueErr)
-	assert.Equal(t, expectedValue, internalValue)
-}
-
-func TestSliceFieldToInternalValue(t *testing.T) {
-	InternalValueCase[MockModel, string](t, []any{"bar", "baz"}, []string{"bar", "baz"})
-	InternalValueCase[MockModel, float64](t, []any{1.0, 2.2}, []float64{1.0, 2.2})
-	InternalValueCase[MockModel, map[string]string](
-		t,
-		[]any{map[string]string{"foo": "bar"}},
-		[]map[string]string{{"foo": "bar"}},
-	)
-	InternalValueCase[MockModel, any](
-		t,
-		[]any{1.0, "foo", map[string]string{"foo": "bar"}},
-		[]any{1.0, "foo", map[string]string{"foo": "bar"}},
-	)
-}
-
-func TestSliceFieldNotACollection(t *testing.T) {
-	var interf any
-	for _, invalidTypeVar := range []any{
-		interf,
-		"foo",
-		map[string]any{},
-		map[string]string{},
-		1,
-		1.0,
-		true,
-	} {
-		baseField := NewField[MockModel]("some_items")
-		field := SliceModelField[string, MockModel]{}
-		field.Update(baseField)
-
-		_, toInternalValueErr := baseField.ToInternalValue(map[string]any{
-			"some_items": invalidTypeVar,
-		}, nil)
-
-		assert.ErrorContains(t, toInternalValueErr, "Should be a collection")
+func FromRepresentationSuccessTestCase[T any](t *testing.T, value []any, expected []T) {
+	var s SliceModelField[T]
+	err := s.FromRepresentation(value)
+	assert.NoError(t, err)
+	for i, item := range expected {
+		assert.Equal(t, item, s[i])
 	}
+	assert.Len(t, s, len(expected))
 }
 
-func TestSliceFieldOneOfCollectionItemsInvalidType(t *testing.T) {
-	baseField := NewField[MockModel]("some_items")
-	field := SliceModelField[float64, MockModel]{}
-	field.Update(baseField)
+func FromRepresentationErrorTestCase[T any](t *testing.T, value any) {
+	var s SliceModelField[T]
+	err := s.FromRepresentation(value)
+	assert.Error(t, err)
+}
 
-	_, toInternalValueErr := baseField.ToInternalValue(map[string]any{
-		"some_items": []any{1.0, 1.2, "foo"},
-	}, nil)
+func TestSliceModelFieldFromRepresentationNoError(t *testing.T) {
+	FromRepresentationSuccessTestCase(t, []any{1, 2, 3}, []int{1, 2, 3})
+	FromRepresentationSuccessTestCase(t, []any{"1", "2", "3"}, []string{"1", "2", "3"})
+	FromRepresentationSuccessTestCase(t, []any{true, false, true}, []bool{true, false, true})
+	FromRepresentationSuccessTestCase(t, []any{1.1, 2.2, 3.3}, []float64{1.1, 2.2, 3.3})
 
-	assert.ErrorContains(t, toInternalValueErr, "some_items[2] is not a valid float64")
+}
+
+func TestSliceModelFieldFromRepresentationError(t *testing.T) {
+	FromRepresentationErrorTestCase[int](t, []any{1, 2, "3"})
+	FromRepresentationErrorTestCase[string](t, []any{1, 2, 3})
+	FromRepresentationErrorTestCase[bool](t, []any{1, 2, 3})
+	FromRepresentationErrorTestCase[float64](t, []any{1, 2, 3})
+	FromRepresentationErrorTestCase[float64](t, 1.337)
+}
+
+func TestSliceModelFieldToRepresentation(t *testing.T) {
+	// given
+	var s SliceModelField[int]
+	s = []int{1, 2, 3}
+
+	// when
+	value, err := s.ToRepresentation()
+
+	// then
+	assert.NoError(t, err)
+	assert.Equal(t, SliceModelField[int]{1, 2, 3}, value)
+}
+
+func TestSliceModelFieldScan(t *testing.T) {
+	// given
+	var s SliceModelField[int]
+
+	// when
+	err := s.Scan([]byte(`[1,2,3]`))
+
+	// then
+	assert.NoError(t, err)
+}
+
+func TestSliceModelFieldScanErrorJSON(t *testing.T) {
+	// given
+	var s SliceModelField[int]
+
+	// when
+	err := s.Scan([]byte(`[1,2,3`))
+
+	// then
+	assert.Error(t, err)
+}
+
+func TestSliceModelFieldScanErrorNotBytes(t *testing.T) {
+	// given
+	var s SliceModelField[int]
+
+	// when
+	err := s.Scan(1.337)
+
+	// then
+	assert.Error(t, err)
+}
+
+func TestSliceModelFieldValue(t *testing.T) {
+	// given
+	s := SliceModelField[int]{1, 2, 3}
+
+	// when
+	value, err := s.Value()
+
+	// then
+	assert.NoError(t, err)
+	assert.Equal(t, []byte(`[1,2,3]`), value)
+}
+
+func TestSliceModelFieldValueEmpty(t *testing.T) {
+	// given
+	s := SliceModelField[int]{}
+
+	// when
+	value, err := s.Value()
+
+	// then
+	assert.NoError(t, err)
+	assert.Equal(t, []byte(`[]`), value)
 }

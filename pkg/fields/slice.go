@@ -5,84 +5,48 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
-	"strings"
-
-	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 )
 
 // SliceModelField is a field that represents a slice of any type
-type SliceModelField[T any, Model any] []T
+type SliceModelField[T any] []T
 
-// Update implements serializer.FieldUpdater interface, and decorates original field to
-// correctly parse types of slice items
-func (s SliceModelField[T, M]) Update(f *Field[M]) {
-	previousValueFunc := f.InternalValueFunc
-	var collectionItem T
-	var m M
-	var typeName string
-
-	if !reflect.ValueOf(collectionItem).IsValid() {
-		typeName = "any"
-	} else {
-		typeName = reflect.TypeOf(collectionItem).String()
+func (s *SliceModelField[T]) FromRepresentation(rawValue any) error {
+	rawValueSlice, ok := rawValue.([]any)
+	if !ok {
+		return errors.New("Is not a collection")
 	}
-	structField, structFieldErr := StructAttributeByJSONTag(m, f.ItsName)
-	if structFieldErr != nil {
-		logrus.Fatalf(
-			`%s.%s: %s`,
-			reflect.TypeOf(m).String(),
-			f.ItsName,
-			structFieldErr.Error(),
-		)
-	}
-	if structField.Tag.Get("gorm") == "" || !strings.Contains(structField.Tag.Get("gorm"), "type:text") {
-		logrus.Fatalf(
-			"%s.%s: SliceField should be used with `gorm:\"type:text\"` tag",
-			reflect.TypeOf(m).String(),
-			f.ItsName,
-		)
-	}
-
-	f.InternalValueFunc = func(rawMap map[string]any, key string, ctx *gin.Context) (any, error) {
-		rawValue, err := previousValueFunc(rawMap, key, ctx)
-		if err != nil {
-			return nil, err
-		}
-		rawValueSlice, ok := rawValue.([]any)
+	var correctTypeSlice []T
+	for i, v := range rawValueSlice {
+		typedValue, ok := v.(T)
 		if !ok {
-			return nil, errors.New("Should be a collection")
+			var t T
+			return fmt.Errorf("[%d] is not a valid %T", i, t)
 		}
-		var correctTypeSlice []T
-		for i, v := range rawValueSlice {
-			typedValue, ok := v.(T)
-			if !ok {
-				return nil, fmt.Errorf("%s[%d] is not a valid %s", key, i, typeName)
-			}
-			correctTypeSlice = append(correctTypeSlice, typedValue)
-		}
-		return correctTypeSlice, nil
+		correctTypeSlice = append(correctTypeSlice, typedValue)
 	}
+
+	*s = correctTypeSlice
+	return nil
+}
+
+func (s SliceModelField[T]) ToRepresentation() (any, error) {
+	return s, nil
 }
 
 // Scan scan value into Jsonb, implements sql.Scanner interface
-func (s *SliceModelField[T, M]) Scan(value any) error {
+func (s *SliceModelField[T]) Scan(value any) error {
 	bytes, ok := value.([]byte)
 	if !ok {
-		return errors.New(fmt.Sprint("Failed to unmarshal JSONB value:", value))
+		return errors.New(fmt.Sprint("Failed to parse the value from database: is not bytes:", value))
 	}
 
-	result := SliceModelField[T, M]{}
+	result := SliceModelField[T]{}
 	err := json.Unmarshal(bytes, &result)
 	*s = result
 	return err
 }
 
 // Value return json value, implement driver.Valuer interface
-func (s SliceModelField[T, M]) Value() (driver.Value, error) {
-	if len(s) == 0 {
-		return nil, nil
-	}
+func (s SliceModelField[T]) Value() (driver.Value, error) {
 	return json.Marshal(s)
 }
