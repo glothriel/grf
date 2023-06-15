@@ -1,11 +1,11 @@
 package pagination
 
 import (
-	"github.com/glothriel/grf/pkg/grfctx"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 type Pagination interface {
-	Apply(*grfctx.Context, *gorm.DB) *gorm.DB
+	Apply(*gin.Context, *gorm.DB) *gorm.DB
 	Format([]any) (any, error)
 }

@@ -1,12 +1,12 @@
 package db
 
 import (
-	"github.com/glothriel/grf/pkg/grfctx"
+	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
-func CtxGetGorm(ctx *grfctx.Context) *gorm.DB {
+func CtxGetGorm(ctx *gin.Context) *gorm.DB {
 	anyVal, ok := ctx.Get("gorm")
 	if !ok {
 		logrus.Fatal("gorm not found in the context. Was it initialized earlier?")
@@ -19,17 +19,20 @@ func CtxGetGorm(ctx *grfctx.Context) *gorm.DB {
 	return theVal
 }
 
-func CtxSetGorm(dbResolver Resolver) func(ctx *grfctx.Context) {
-	return func(ctx *grfctx.Context) {
+func CtxSetGorm(dbResolver Resolver) func(ctx *gin.Context) {
+
+	return func(ctx *gin.Context) {
 		db, err := dbResolver.Resolve(ctx)
 		if err != nil {
 			logrus.Fatal("Failed to resolve db")
 		}
+
+		logrus.Error("SET GORM")
 		ctx.Set("gorm", db)
 	}
 }
 
-func CtxNewQuery[Model any](ctx *grfctx.Context) *gorm.DB {
+func ORM[Model any](ctx *gin.Context) *gorm.DB {
 	var entity Model
 	return CtxGetGorm(ctx).Session(&gorm.Session{NewDB: true}).Model(&entity)
 }

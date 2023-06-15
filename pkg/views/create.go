@@ -4,15 +4,14 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/glothriel/grf/pkg/db"
-	"github.com/glothriel/grf/pkg/grfctx"
 	"github.com/glothriel/grf/pkg/models"
 )
 
-func CreateModelFunc[Model any](settings ModelViewSettings[Model]) HandlerFunc {
-	return func(ctx *grfctx.Context) {
+func CreateModelFunc[Model any](settings ModelViewSettings[Model]) gin.HandlerFunc {
+	return func(ctx *gin.Context) {
 		var rawElement map[string]any
-		if err := ctx.Gin.ShouldBindJSON(&rawElement); err != nil {
-			ctx.Gin.JSON(400, gin.H{
+		if err := ctx.ShouldBindJSON(&rawElement); err != nil {
+			ctx.JSON(400, gin.H{
 				"message": err.Error(),
 			})
 			return
@@ -23,7 +22,7 @@ func CreateModelFunc[Model any](settings ModelViewSettings[Model]) HandlerFunc {
 		}
 		internalValue, fromRawErr := effectiveSerializer.ToInternalValue(rawElement, ctx)
 		if fromRawErr != nil {
-			WriteError(ctx.Gin, fromRawErr)
+			WriteError(ctx, fromRawErr)
 			return
 		}
 		// Gorm supports creating rows using maps, but we cannot use that, because in that case
@@ -31,26 +30,26 @@ func CreateModelFunc[Model any](settings ModelViewSettings[Model]) HandlerFunc {
 		// convert the map to a struct and execute the query, despite reflection being slow.
 		entity, asModelErr := models.AsModel[Model](internalValue)
 		if asModelErr != nil {
-			WriteError(ctx.Gin, asModelErr)
+			WriteError(ctx, asModelErr)
 			return
 		}
-		createErr := db.CtxNewQuery[Model](ctx).Create(&entity).Error
+		createErr := db.ORM[Model](ctx).Create(&entity).Error
 		if createErr != nil {
-			WriteError(ctx.Gin, createErr)
+			WriteError(ctx, createErr)
 			return
 		}
 		internalValue, internalValueErr := models.AsInternalValue(entity)
 		if internalValueErr != nil {
-			WriteError(ctx.Gin, internalValueErr)
+			WriteError(ctx, internalValueErr)
 			return
 		}
 		representation, serializeErr := effectiveSerializer.ToRepresentation(internalValue, ctx)
 		if serializeErr != nil {
-			ctx.Gin.JSON(500, gin.H{
+			ctx.JSON(500, gin.H{
 				"message": serializeErr.Error(),
 			})
 			return
 		}
-		ctx.Gin.JSON(201, representation)
+		ctx.JSON(201, representation)
 	}
 }

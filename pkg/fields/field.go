@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/glothriel/grf/pkg/grfctx"
+	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/models"
 	"github.com/sirupsen/logrus"
 )
 
-type RepresentationFunc[Model any] func(models.InternalValue, string, *grfctx.Context) (any, error)
-type InternalValueFunc func(map[string]any, string, *grfctx.Context) (any, error)
+type RepresentationFunc[Model any] func(models.InternalValue, string, *gin.Context) (any, error)
+type InternalValueFunc func(map[string]any, string, *gin.Context) (any, error)
 
 type Field[Model any] struct {
 	ItsName            string
@@ -26,15 +26,15 @@ func (s *Field[Model]) Name() string {
 	return s.ItsName
 }
 
-func (s *Field[Model]) ToRepresentation(intVal models.InternalValue, ctx *grfctx.Context) (any, error) {
+func (s *Field[Model]) ToRepresentation(intVal models.InternalValue, ctx *gin.Context) (any, error) {
 	return s.RepresentationFunc(intVal, s.ItsName, ctx)
 }
 
-func (s *Field[Model]) ToInternalValue(reprModel map[string]any, ctx *grfctx.Context) (any, error) {
+func (s *Field[Model]) ToInternalValue(reprModel map[string]any, ctx *gin.Context) (any, error) {
 	return s.InternalValueFunc(reprModel, s.ItsName, ctx)
 }
 
-func (s *Field[Model]) FromDB(reprModel map[string]any, ctx *grfctx.Context) (any, error) {
+func (s *Field[Model]) FromDB(reprModel map[string]any, ctx *gin.Context) (any, error) {
 	return s.FromDBFunc(reprModel, s.ItsName, ctx)
 }
 
@@ -74,7 +74,7 @@ func (s *Field[Model]) WithFromDBFunc(f InternalValueFunc) *Field[Model] {
 func NewField[Model any](name string) *Field[Model] {
 	return &Field[Model]{
 		ItsName: name,
-		RepresentationFunc: func(intVal models.InternalValue, name string, ctx *grfctx.Context) (any, error) {
+		RepresentationFunc: func(intVal models.InternalValue, name string, ctx *gin.Context) (any, error) {
 			return intVal[name], nil
 		},
 		FromDBFunc:        SQLScannerOrPassthrough[Model](),
@@ -85,12 +85,12 @@ func NewField[Model any](name string) *Field[Model] {
 }
 
 func InternalValuePassthrough() InternalValueFunc {
-	return func(reprModel map[string]any, name string, ctx *grfctx.Context) (any, error) {
+	return func(reprModel map[string]any, name string, ctx *gin.Context) (any, error) {
 		return reprModel[name], nil
 	}
 }
 
-func SQLScannerOrPassthrough[Model any]() func(map[string]any, string, *grfctx.Context) (any, error) {
+func SQLScannerOrPassthrough[Model any]() func(map[string]any, string, *gin.Context) (any, error) {
 	var entity Model
 	jsonTagsToFieldNames := map[string]string{}
 	for _, field := range reflect.VisibleFields(reflect.TypeOf(entity)) {
@@ -107,7 +107,7 @@ func SQLScannerOrPassthrough[Model any]() func(map[string]any, string, *grfctx.C
 		fieldBlueprints[fieldName] = ttype
 	}
 
-	return func(reprModel map[string]any, name string, ctx *grfctx.Context) (any, error) {
+	return func(reprModel map[string]any, name string, ctx *gin.Context) (any, error) {
 		reflectedInstance := reflect.New(fieldBlueprints[name])
 
 		var realFieldValue any

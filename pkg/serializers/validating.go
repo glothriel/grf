@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/glothriel/grf/pkg/grfctx"
+	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/models"
 	playgroundValidate "github.com/go-playground/validator/v10"
 	gookitValidate "github.com/gookit/validate"
@@ -16,7 +16,7 @@ type ValidatingSerializer[Model any] struct {
 	Validators []Validator[Model]
 }
 
-func (s *ValidatingSerializer[Model]) ToInternalValue(raw map[string]any, ctx *grfctx.Context) (models.InternalValue, error) {
+func (s *ValidatingSerializer[Model]) ToInternalValue(raw map[string]any, ctx *gin.Context) (models.InternalValue, error) {
 	intVal, err := s.child.ToInternalValue(raw, ctx)
 	if err != nil {
 		return intVal, err
@@ -24,11 +24,11 @@ func (s *ValidatingSerializer[Model]) ToInternalValue(raw map[string]any, ctx *g
 	return intVal, s.Validate(intVal, ctx)
 }
 
-func (s *ValidatingSerializer[Model]) ToRepresentation(intVal models.InternalValue, ctx *grfctx.Context) (Representation, error) {
+func (s *ValidatingSerializer[Model]) ToRepresentation(intVal models.InternalValue, ctx *gin.Context) (Representation, error) {
 	return s.child.ToRepresentation(intVal, ctx)
 }
 
-func (s *ValidatingSerializer[Model]) FromDB(raw map[string]any, ctx *grfctx.Context) (models.InternalValue, error) {
+func (s *ValidatingSerializer[Model]) FromDB(raw map[string]any, ctx *gin.Context) (models.InternalValue, error) {
 	intVal, err := s.child.FromDB(raw, ctx)
 	if err != nil {
 		return intVal, err
@@ -36,7 +36,7 @@ func (s *ValidatingSerializer[Model]) FromDB(raw map[string]any, ctx *grfctx.Con
 	return intVal, nil
 }
 
-func (s *ValidatingSerializer[Model]) Validate(intVal models.InternalValue, ctx *grfctx.Context) error {
+func (s *ValidatingSerializer[Model]) Validate(intVal models.InternalValue, ctx *gin.Context) error {
 	errors := make([]error, 0)
 	for _, validator := range s.Validators {
 		err := validator.Validate(intVal)

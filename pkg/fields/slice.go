@@ -8,7 +8,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/glothriel/grf/pkg/grfctx"
+	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
 
@@ -45,7 +45,7 @@ func (s SliceModelField[T, M]) Update(f *Field[M]) {
 		)
 	}
 
-	f.InternalValueFunc = func(rawMap map[string]any, key string, ctx *grfctx.Context) (any, error) {
+	f.InternalValueFunc = func(rawMap map[string]any, key string, ctx *gin.Context) (any, error) {
 		rawValue, err := previousValueFunc(rawMap, key, ctx)
 		if err != nil {
 			return nil, err
