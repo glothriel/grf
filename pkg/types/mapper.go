@@ -6,6 +6,15 @@ import (
 	"time"
 )
 
+var mapper *FieldTypeMapper
+
+func Mapper() *FieldTypeMapper {
+	if mapper == nil {
+		mapper = DefaultFieldTypeMapper()
+	}
+	return mapper
+}
+
 type FieldType struct {
 	InternalToResponse ConvertFunc
 	RequestToInternal  ConvertFunc

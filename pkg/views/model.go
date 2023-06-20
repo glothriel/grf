@@ -31,17 +31,14 @@ type ModelViewSettings[Model any] struct {
 	CreateSerializer   serializers.Serializer
 	DeleteSerializer   serializers.Serializer
 
-	Pagination      pagination.Pagination
-	Filter          QueryModFunc
-	OrderBy         QueryModFunc
-	IDFunc          func(*gin.Context) any
-	DBResolver      db.Resolver
-	FieldTypeMapper *types.FieldTypeMapper
-	FieldTypes      map[string]string
+	Pagination pagination.Pagination
+	Filter     QueryModFunc
+	OrderBy    QueryModFunc
+	IDFunc     func(*gin.Context) any
+	DBResolver db.Resolver
 }
 
 func NewDefaultModelViewContext[Model any](dbResolver db.Resolver) ModelViewSettings[Model] {
-	var m Model
 	return ModelViewSettings[Model]{
 		DefaultSerializer: &serializers.MissingSerializer[Model]{},
 		Pagination:        &pagination.NoPagination{},
@@ -49,8 +46,6 @@ func NewDefaultModelViewContext[Model any](dbResolver db.Resolver) ModelViewSett
 		OrderBy:           QueryModPassThrough,
 		DBResolver:        dbResolver,
 		IDFunc:            IDFromQueryParamIDFunc[Model],
-		FieldTypeMapper:   types.DefaultFieldTypeMapper(),
-		FieldTypes:        serializers.DetectAttributes(m),
 	}
 }
 
@@ -138,7 +133,6 @@ func (v *ModelView[Model]) WithAuthentication(authenticator authentication.Authe
 }
 
 func (v *ModelView[Model]) WithFieldTypeMapper(fieldTypeMapper *types.FieldTypeMapper) *ModelView[Model] {
-	v.Settings.FieldTypeMapper = fieldTypeMapper
 	return v
 }
 

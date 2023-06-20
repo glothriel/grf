@@ -40,14 +40,14 @@ func main() {
 	dbResolver := db.NewStaticResolver(gormDB)
 
 	serializer := serializers.NewValidatingSerializer[SDGConfig](
-		serializers.NewModelSerializer[SDGConfig](nil)).WithValidator(
+		serializers.NewModelSerializer[SDGConfig]()).WithValidator(
 		&serializers.GoPlaygroundValidator[SDGConfig]{},
 	)
 
 	views.NewListCreateModelView[SDGConfig]("/sdg", dbResolver).WithSerializer(
 		serializer,
 	).WithListSerializer(
-		serializers.NewModelSerializer[SDGConfig](nil).WithModelFields([]string{"id", "enabled", "integration"}),
+		serializers.NewModelSerializer[SDGConfig]().WithModelFields([]string{"id", "enabled", "integration"}),
 	).Register(router)
 
 	views.NewRetrieveUpdateDeleteModelView[SDGConfig]("/sdg/:id", dbResolver).WithSerializer(

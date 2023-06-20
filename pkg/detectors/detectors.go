@@ -1,4 +1,4 @@
-package serializers
+package detectors
 
 import (
 	"encoding"
@@ -13,6 +13,14 @@ import (
 // using well known interfaces, knowledge of stdlib types or any other way
 type ToRepresentationDetector[Model any] interface {
 	ToRepresentation(fieldName string) (fields.RepresentationFunc, error)
+}
+
+func DefaultToRepresentationDetector[Model any]() ToRepresentationDetector[Model] {
+	return NewChainingToRepresentationDetector(
+		NewUsingGRFRepresentableToRepresentationProvider[Model](),
+		NewFromTypeMapperToRepresentationProvider[Model](types.Mapper()),
+		NewEncodingTextMarshalerToRepresentationProvider[Model](),
+	)
 }
 
 type usingGRFRepresentableToRepresentationDetector[Model any] struct{}
@@ -48,10 +56,9 @@ func (p *fromTypeMapperToRepresentationDetector[Model]) ToRepresentation(fieldNa
 }
 
 func NewFromTypeMapperToRepresentationProvider[Model any](mapper *types.FieldTypeMapper) ToRepresentationDetector[Model] {
-	var m Model
 	return &fromTypeMapperToRepresentationDetector[Model]{
 		mapper:         mapper,
-		modelTypeNames: DetectAttributes(m),
+		modelTypeNames: FieldTypes[Model](),
 	}
 }
 
@@ -100,6 +107,14 @@ type ToInternalValueDetector interface {
 	ToInternalValue(fieldName string) (fields.InternalValueFunc, error)
 }
 
+func DefaultToInternalValueDetector[Model any]() ToInternalValueDetector {
+	return NewChainingToInternalValueDetector[Model](
+		NewUsingGRFParsableToInternalValueProvider[Model](),
+		NewFromTypeMapperToInternalValueProvider[Model](types.Mapper()),
+		NewEncodingTextUnmarshalerToInternalValueProvider[Model](),
+	)
+}
+
 type usingGRFParsableToInternalValueDetector[Model any] struct{}
 
 func (p *usingGRFParsableToInternalValueDetector[Model]) ToInternalValue(fieldName string) (fields.InternalValueFunc, error) {
@@ -134,8 +149,7 @@ func (p *fromTypeMapperToInternalValueDetector[Model]) ToInternalValue(fieldName
 }
 
 func NewFromTypeMapperToInternalValueProvider[Model any](mapper *types.FieldTypeMapper) ToInternalValueDetector {
-	var m Model
-	return &fromTypeMapperToInternalValueDetector[Model]{mapper: mapper, modelTypeNames: DetectAttributes(m)}
+	return &fromTypeMapperToInternalValueDetector[Model]{mapper: mapper, modelTypeNames: FieldTypes[Model]()}
 }
 
 type encodingTextUnmarshalerToInternalValueDetector[Model any] struct{}

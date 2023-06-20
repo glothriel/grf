@@ -43,12 +43,12 @@ func main() {
 
 	views.NewListCreateModelView[Product]("/products", dbResolver).WithSerializer(
 		serializers.NewValidatingSerializer[Product](
-			serializers.NewModelSerializer[Product](nil),
+			serializers.NewModelSerializer[Product](),
 		).WithValidator(
 			&serializers.GoPlaygroundValidator[Product]{},
 		),
 	).WithListSerializer(
-		serializers.NewModelSerializer[Product](nil).
+		serializers.NewModelSerializer[Product]().
 			WithModelFields([]string{"id", "name"}),
 	).WithFilter(
 		func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
@@ -61,7 +61,7 @@ func main() {
 
 	views.NewRetrieveUpdateDeleteModelView[Product]("/products/:id", dbResolver).WithSerializer(
 		serializers.NewValidatingSerializer[Product](
-			serializers.NewModelSerializer[Product](nil),
+			serializers.NewModelSerializer[Product](),
 		).WithValidator(
 			&serializers.GoPlaygroundValidator[Product]{},
 		),
