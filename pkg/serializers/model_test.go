@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glothriel/grf/pkg/detectors"
 	"github.com/glothriel/grf/pkg/fields"
 	"github.com/glothriel/grf/pkg/models"
 	"github.com/stretchr/testify/assert"
@@ -247,5 +248,75 @@ func TestModelSerializerWithFieldDoesNotExist(t *testing.T) {
 				)
 			},
 		)
+	})
+}
+
+type mockToRepresentationDetector[Model any] struct {
+	shouldErr bool
+}
+
+func (d *mockToRepresentationDetector[Model]) ToRepresentation(fieldName string) (fields.RepresentationFunc, error) {
+	if d.shouldErr {
+		return nil, errors.New("foo err")
+	}
+	return detectors.ConvertFuncToRepresentationFuncAdapter(
+		func(v any) (any, error) {
+			return "huehue", nil
+		},
+	), nil
+}
+
+type mockToInternalValueDetector[Model any] struct {
+	shouldErr bool
+}
+
+func (d *mockToInternalValueDetector[Model]) ToInternalValue(fieldName string) (fields.InternalValueFunc, error) {
+	if d.shouldErr {
+		return nil, errors.New("foo err")
+	}
+	return detectors.ConvertFuncToInternalValueFuncAdapter(
+		func(v any) (any, error) {
+			return "huehue", nil
+		},
+	), nil
+}
+
+func TestWithModelFields(t *testing.T) {
+	// given
+	serializer := NewModelSerializer[mockModel]()
+	serializer.toInternalValueDetector = &mockToInternalValueDetector[mockModel]{}
+	serializer.toRepresentationDetector = &mockToRepresentationDetector[mockModel]{}
+
+	// when
+	serializer.WithModelFields([]string{"foo"})
+	internalValue, internalValueErr := serializer.Fields["foo"].ToInternalValue(map[string]any{"foo": "bar"}, nil)
+	representation, representationErr := serializer.Fields["foo"].ToRepresentation(map[string]any{"foo": "bar"}, nil)
+
+	// then
+	assert.NoError(t, internalValueErr)
+	assert.Equal(t, "huehue", internalValue)
+	assert.NoError(t, representationErr)
+	assert.Equal(t, "huehue", representation)
+}
+
+func TestWithModelFieldsPanicsWhenInternalValueDetectorErr(t *testing.T) {
+	// given
+	serializer := NewModelSerializer[mockModel]()
+	serializer.toInternalValueDetector = &mockToInternalValueDetector[mockModel]{shouldErr: true}
+
+	// then
+	assert.Panics(t, func() {
+		serializer.WithModelFields([]string{"foo"})
+	})
+}
+
+func TestWithModelFieldsPanicsWhenRepresentationDetectorErr(t *testing.T) {
+	// given
+	serializer := NewModelSerializer[mockModel]()
+	serializer.toRepresentationDetector = &mockToRepresentationDetector[mockModel]{shouldErr: true}
+
+	// then
+	assert.Panics(t, func() {
+		serializer.WithModelFields([]string{"foo"})
 	})
 }
