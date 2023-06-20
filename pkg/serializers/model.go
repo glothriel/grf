@@ -1,21 +1,22 @@
 package serializers
 
 import (
-	"encoding"
 	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glothriel/grf/pkg/detectors"
 	"github.com/glothriel/grf/pkg/fields"
 	"github.com/glothriel/grf/pkg/models"
-	"github.com/glothriel/grf/pkg/types"
 	"github.com/sirupsen/logrus"
 )
 
 type ModelSerializer[Model any] struct {
-	Fields          map[string]*fields.Field[Model]
-	FieldTypeMapper *types.FieldTypeMapper
+	Fields map[string]*fields.Field[Model]
+
+	toRepresentationDetector detectors.ToRepresentationDetector[Model]
+	toInternalValueDetector  detectors.ToInternalValueDetector
 }
 
 func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any, ctx *gin.Context) (models.InternalValue, error) {
@@ -98,7 +99,7 @@ func (s *ModelSerializer[Model]) WithField(name string, updateFunc func(oldField
 	v, ok := s.Fields[name]
 	if !ok {
 		var m Model
-		logrus.Fatalf("Could not find field `%s` on model `%s` when registering serializer field", name, reflect.TypeOf(m))
+		logrus.Panicf("Could not find field `%s` on model `%s` when registering serializer field", name, reflect.TypeOf(m))
 	}
 	updateFunc(v)
 	return s
@@ -106,29 +107,17 @@ func (s *ModelSerializer[Model]) WithField(name string, updateFunc func(oldField
 
 func (s *ModelSerializer[Model]) WithModelFields(passedFields []string) *ModelSerializer[Model] {
 
-	toRepresentationFuncDetector := NewChainingToRepresentationDetector(
-		NewUsingGRFRepresentableToRepresentationProvider[Model](),
-		NewFromTypeMapperToRepresentationProvider[Model](s.FieldTypeMapper),
-		NewEncodingTextMarshalerToRepresentationProvider[Model](),
-	)
-
-	toInternalValueFuncDetector := NewChainingToInternalValueDetector[Model](
-		NewUsingGRFParsableToInternalValueProvider[Model](),
-		NewFromTypeMapperToInternalValueProvider[Model](s.FieldTypeMapper),
-		NewEncodingTextUnmarshalerToInternalValueProvider[Model](),
-	)
-
 	s.Fields = make(map[string]*fields.Field[Model])
 	var m Model
 	for _, field := range passedFields {
-		toRepresentation, toRepresentationErr := toRepresentationFuncDetector.ToRepresentation(field)
+		toRepresentation, toRepresentationErr := s.toRepresentationDetector.ToRepresentation(field)
 		if toRepresentationErr != nil {
-			logrus.Fatalf("WithModelFields: Failed to register model `%s` fields: %s", reflect.TypeOf(m), toRepresentationErr)
+			logrus.Panicf("WithModelFields: Failed to register model `%s` fields: %s", reflect.TypeOf(m), toRepresentationErr)
 
 		}
-		toInternalValue, toInternalValueErr := toInternalValueFuncDetector.ToInternalValue(field)
+		toInternalValue, toInternalValueErr := s.toInternalValueDetector.ToInternalValue(field)
 		if toInternalValueErr != nil {
-			logrus.Fatalf("WithModelFields: Failed to register model `%s` fields: %s", reflect.TypeOf(m), toInternalValueErr)
+			logrus.Panicf("WithModelFields: Failed to register model `%s` fields: %s", reflect.TypeOf(m), toInternalValueErr)
 		}
 		s.Fields[field] = fields.NewField[Model](
 			field,
@@ -141,133 +130,9 @@ func (s *ModelSerializer[Model]) WithModelFields(passedFields []string) *ModelSe
 	return s
 }
 
-type FieldUpdater[Model any] interface {
-	Update(f *fields.Field[Model])
-}
-
-func NewModelSerializer[Model any](ftm *types.FieldTypeMapper) *ModelSerializer[Model] {
-	if ftm == nil {
-		ftm = types.DefaultFieldTypeMapper()
-	}
-	fieldNames := []string{}
-	var m Model
-	fields := reflect.VisibleFields(reflect.TypeOf(m))
-	for _, field := range fields {
-		if !field.Anonymous {
-			fieldNames = append(fieldNames, field.Tag.Get("json"))
-		}
-	}
-
+func NewModelSerializer[Model any]() *ModelSerializer[Model] {
 	return (&ModelSerializer[Model]{
-		FieldTypeMapper: ftm,
-	}).WithModelFields(fieldNames)
-}
-
-func ConvertFuncToRepresentationFuncAdapter(cf types.ConvertFunc) fields.RepresentationFunc {
-	return func(intVal models.InternalValue, name string, ctx *gin.Context) (any, error) {
-		return cf(intVal[name])
-	}
-}
-
-func ConvertFuncToInternalValueFuncAdapter(cf types.ConvertFunc) fields.InternalValueFunc {
-	return func(reprModel map[string]any, name string, ctx *gin.Context) (any, error) {
-		return cf(reprModel[name])
-	}
-}
-
-// Prints a summary with the fields of the model obtained using reflection
-func DetectAttributes[Model any](model Model) map[string]string {
-	ret := make(map[string]string)
-	fields := reflect.VisibleFields(reflect.TypeOf(model))
-	for _, field := range fields {
-		if !field.Anonymous {
-			ret[field.Tag.Get("json")] = field.Type.String()
-		}
-	}
-	return ret
-}
-
-func DecodeFromStringOrPassthrough[Model any](fieldName string) types.ConvertFunc {
-	settings := getFieldSettings[Model](fieldName)
-	if settings == nil {
-		var entity Model
-		logrus.Fatalf("Could not find field `%s` on model `%s`", fieldName, reflect.TypeOf(entity))
-	}
-	return func(v any) (any, error) {
-		var realFieldValue any = reflect.New(settings.itsType).Interface()
-		vStr, ok := v.(string)
-		if ok {
-			if settings.isEncodingTextUnmarshaler {
-				fv := realFieldValue.(encoding.TextUnmarshaler)
-				unmarshalErr := fv.UnmarshalText([]byte(vStr))
-				return fv, unmarshalErr
-			} else {
-				return types.ConvertPassThrough(v)
-			}
-		}
-
-		return types.ConvertPassThrough(v)
-	}
-}
-
-func EncodeToStringOrPassthrough[Model any](fieldName string) types.ConvertFunc {
-	settings := getFieldSettings[Model](fieldName)
-	if settings == nil {
-		var entity Model
-		logrus.Fatalf("Could not find field `%s` on model `%s`", fieldName, reflect.TypeOf(entity))
-	}
-	return func(v any) (any, error) {
-		if settings.isEncodingTextMarshaler {
-			marshalledBytes, marshallErr := v.(encoding.TextMarshaler).MarshalText()
-			if marshallErr != nil {
-				return nil, marshallErr
-			}
-			return string(marshalledBytes), nil
-		}
-		return types.ConvertPassThrough(v)
-	}
-}
-
-type fieldSettings struct {
-	itsType                 reflect.Type
-	isEncodingTextMarshaler bool
-	// isPtrEncodingTextMarshaler   bool
-	isEncodingTextUnmarshaler bool
-	// isPtrEncodingTextUnmarshaler bool
-
-	isGRFRepresentable bool
-	isGRFParsable      bool
-}
-
-func getFieldSettings[Model any](fieldName string) *fieldSettings {
-	var entity Model
-	var settings *fieldSettings
-	for _, field := range reflect.VisibleFields(reflect.TypeOf(entity)) {
-		jsonTag := field.Tag.Get("json")
-		if jsonTag == fieldName {
-			var theTypeAsAny any
-			reflectedInstance := reflect.New(reflect.TypeOf(reflect.ValueOf(entity).FieldByName(field.Name).Interface())).Elem()
-			if reflectedInstance.CanAddr() {
-				theTypeAsAny = reflectedInstance.Addr().Interface()
-			} else {
-				theTypeAsAny = reflectedInstance.Interface()
-			}
-
-			_, isEncodingTextMarshaler := theTypeAsAny.(encoding.TextMarshaler)
-			_, isEncodingTextUnmarshaler := theTypeAsAny.(encoding.TextUnmarshaler)
-			_, isGRFRepresentable := theTypeAsAny.(fields.GRFRepresentable)
-			_, isGRFParsable := theTypeAsAny.(fields.GRFParsable)
-
-			settings = &fieldSettings{
-				itsType: reflect.TypeOf(
-					reflectedInstance.Interface(),
-				),
-				isEncodingTextMarshaler:   isEncodingTextMarshaler,
-				isEncodingTextUnmarshaler: isEncodingTextUnmarshaler,
-				isGRFRepresentable:        isGRFRepresentable,
-				isGRFParsable:             isGRFParsable,
-			}
-		}
-	}
-	return settings
+		toRepresentationDetector: detectors.DefaultToRepresentationDetector[Model](),
+		toInternalValueDetector:  detectors.DefaultToInternalValueDetector[Model](),
+	}).WithModelFields(detectors.Fields[Model]())
 }

@@ -138,7 +138,7 @@ func registerModel[Model any](
 	prefix string,
 	orderBy string,
 ) {
-	serializer := serializers.NewModelSerializer[Model](nil)
+	serializer := serializers.NewModelSerializer[Model]()
 
 	views.NewListCreateModelView[Model](prefix, dbResolver).WithSerializer(
 		serializer,

@@ -15,8 +15,13 @@ jobs:
     - name: Install dependencies
       run: |
         go mod download
+    
+    - name: Create empty test files as a workaround for https://github.com/golang/go/issues/24570
+      run: python .github/scripts/create-empty-tests.py
+
     - name: Run Unit tests
       run: go test -v -coverpkg=./... -race -coverprofile=coverage.out -covermode=atomic ./...
+    
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3
       with:
