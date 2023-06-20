@@ -40,7 +40,7 @@ func main() {
 	dbResolver := db.NewStaticResolver(gormDB)
 
 	serializer := serializers.NewValidatingSerializer[SDGConfig](
-		serializers.NewModelSerializer[SDGConfig]()).WithValidator(
+		serializers.NewModelSerializer[SDGConfig]()).AddValidator(
 		&serializers.GoPlaygroundValidator[SDGConfig]{},
 	)
 

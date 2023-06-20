@@ -44,7 +44,7 @@ func main() {
 	views.NewListCreateModelView[Product]("/products", dbResolver).WithSerializer(
 		serializers.NewValidatingSerializer[Product](
 			serializers.NewModelSerializer[Product](),
-		).WithValidator(
+		).AddValidator(
 			&serializers.GoPlaygroundValidator[Product]{},
 		),
 	).WithListSerializer(
@@ -62,7 +62,6 @@ func main() {
 	views.NewRetrieveUpdateDeleteModelView[Product]("/products/:id", dbResolver).WithSerializer(
 		serializers.NewValidatingSerializer[Product](
 			serializers.NewModelSerializer[Product](),
-		).WithValidator(
 			&serializers.GoPlaygroundValidator[Product]{},
 		),
 	).Register(router)

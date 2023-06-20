@@ -50,13 +50,19 @@ func (s *ValidatingSerializer[Model]) Validate(intVal models.InternalValue, ctx 
 	return nil
 }
 
-func (s *ValidatingSerializer[Model]) WithValidator(validator Validator[Model]) *ValidatingSerializer[Model] {
+func (s *ValidatingSerializer[Model]) AddValidator(validator Validator[Model]) *ValidatingSerializer[Model] {
 	s.Validators = append(s.Validators, validator)
 	return s
 }
 
-func NewValidatingSerializer[Model any](child Serializer) *ValidatingSerializer[Model] {
-	return &ValidatingSerializer[Model]{child: child}
+func NewValidatingSerializer[Model any](child Serializer, validator ...Validator[Model]) *ValidatingSerializer[Model] {
+	s := &ValidatingSerializer[Model]{child: child}
+
+	for _, v := range validator {
+		s.AddValidator(v)
+	}
+
+	return s
 }
 
 type Validator[Model any] interface {
