@@ -19,9 +19,9 @@ import (
 type Product struct {
 	models.BaseModel
 
-	Name        string          `json:"name" gorm:"size:191;column:name" validate:"required"`
-	Description string          `json:"description" gorm:"type:text;column:description" validate:"required"`
-	Price       decimal.Decimal `json:"price" gorm:"type:decimal(19,4)" validate:"required"`
+	Name        string          `json:"name" gorm:"size:191;column:name"`
+	Description string          `json:"description" gorm:"type:text;column:description"`
+	Price       decimal.Decimal `json:"price" gorm:"type:decimal(19,4)"`
 }
 
 func main() {
@@ -41,11 +41,17 @@ func main() {
 	}
 	dbResolver := db.NewStaticResolver(gormDB)
 
+	validator := serializers.NewGoPlaygroundValidator[Product](
+		map[string]any{
+			"name":        "required",
+			"description": "required",
+		},
+	)
+
 	views.NewListCreateModelView[Product]("/products", dbResolver).WithSerializer(
 		serializers.NewValidatingSerializer[Product](
 			serializers.NewModelSerializer[Product](),
-		).AddValidator(
-			&serializers.GoPlaygroundValidator[Product]{},
+			validator,
 		),
 	).WithListSerializer(
 		serializers.NewModelSerializer[Product]().
@@ -62,7 +68,7 @@ func main() {
 	views.NewRetrieveUpdateDeleteModelView[Product]("/products/:id", dbResolver).WithSerializer(
 		serializers.NewValidatingSerializer[Product](
 			serializers.NewModelSerializer[Product](),
-			&serializers.GoPlaygroundValidator[Product]{},
+			validator,
 		),
 	).Register(router)
 

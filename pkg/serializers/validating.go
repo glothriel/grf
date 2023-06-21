@@ -1,19 +1,17 @@
 package serializers
 
 import (
-	"reflect"
+	"fmt"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/models"
 	playgroundValidate "github.com/go-playground/validator/v10"
-	gookitValidate "github.com/gookit/validate"
-	"github.com/sirupsen/logrus"
 )
 
 type ValidatingSerializer[Model any] struct {
 	child      Serializer
-	Validators []Validator[Model]
+	validators []Validator
 }
 
 func (s *ValidatingSerializer[Model]) ToInternalValue(raw map[string]any, ctx *gin.Context) (models.InternalValue, error) {
@@ -21,7 +19,7 @@ func (s *ValidatingSerializer[Model]) ToInternalValue(raw map[string]any, ctx *g
 	if err != nil {
 		return intVal, err
 	}
-	return intVal, s.Validate(intVal, ctx)
+	return intVal, s.validate(intVal, ctx)
 }
 
 func (s *ValidatingSerializer[Model]) ToRepresentation(intVal models.InternalValue, ctx *gin.Context) (Representation, error) {
@@ -29,16 +27,12 @@ func (s *ValidatingSerializer[Model]) ToRepresentation(intVal models.InternalVal
 }
 
 func (s *ValidatingSerializer[Model]) FromDB(raw map[string]any, ctx *gin.Context) (models.InternalValue, error) {
-	intVal, err := s.child.FromDB(raw, ctx)
-	if err != nil {
-		return intVal, err
-	}
-	return intVal, nil
+	return s.child.FromDB(raw, ctx)
 }
 
-func (s *ValidatingSerializer[Model]) Validate(intVal models.InternalValue, ctx *gin.Context) error {
+func (s *ValidatingSerializer[Model]) validate(intVal models.InternalValue, ctx *gin.Context) error {
 	errors := make([]error, 0)
-	for _, validator := range s.Validators {
+	for _, validator := range s.validators {
 		err := validator.Validate(intVal)
 		if err != nil {
 			errors = append(errors, err)
@@ -50,12 +44,12 @@ func (s *ValidatingSerializer[Model]) Validate(intVal models.InternalValue, ctx 
 	return nil
 }
 
-func (s *ValidatingSerializer[Model]) AddValidator(validator Validator[Model]) *ValidatingSerializer[Model] {
-	s.Validators = append(s.Validators, validator)
+func (s *ValidatingSerializer[Model]) AddValidator(validator Validator) *ValidatingSerializer[Model] {
+	s.validators = append(s.validators, validator)
 	return s
 }
 
-func NewValidatingSerializer[Model any](child Serializer, validator ...Validator[Model]) *ValidatingSerializer[Model] {
+func NewValidatingSerializer[Model any](child Serializer, validator ...Validator) *ValidatingSerializer[Model] {
 	s := &ValidatingSerializer[Model]{child: child}
 
 	for _, v := range validator {
@@ -65,78 +59,42 @@ func NewValidatingSerializer[Model any](child Serializer, validator ...Validator
 	return s
 }
 
-type Validator[Model any] interface {
+type Validator interface {
 	Validate(models.InternalValue) error
 }
 
-type GookitValidator[Model any] struct {
-	Validation *gookitValidate.Validation
-	Rules      []GookitRule
+type goPlaygroundValidator[Model any] struct {
+	rules map[string]any
 }
 
-type GookitRule struct {
-	Fields    string
-	Validator string
-	Args      []any
-}
+func (v *goPlaygroundValidator[Model]) Validate(intVal models.InternalValue) (err error) {
 
-func (v *GookitValidator[Model]) Validate(intVal models.InternalValue) error {
-	entity, asModelErr := models.AsModel[Model](intVal)
-	if asModelErr != nil {
-		return asModelErr
-	}
-	val := gookitValidate.New(entity)
-	for _, rule := range v.Rules {
-		val.AddRule(rule.Fields, rule.Validator, rule.Args...)
-	}
-	return val.ValidateE().ErrOrNil()
-}
-
-func (v *GookitValidator[Model]) WithRule(Fields, Validator string, Args ...any) *GookitValidator[Model] {
-	v.Rules = append(v.Rules, GookitRule{Fields, Validator, Args})
-	return v
-}
-
-func NewGoogkitValidator[Model any]() *GookitValidator[Model] {
-	return &GookitValidator[Model]{Validation: gookitValidate.New(nil)}
-}
-
-type GoPlaygroundValidator[Model any] struct{}
-
-func (v *GoPlaygroundValidator[Model]) Validate(intVal models.InternalValue) error {
-
-	entity, asModelErr := models.AsModel[Model](intVal)
-	if asModelErr != nil {
-		return asModelErr
-	}
 	validator := playgroundValidate.New()
-	validator.RegisterTagNameFunc(
-		func(fld reflect.StructField) string {
-			name := strings.SplitN(fld.Tag.Get("json"), ",", 2)[0]
-			if name == "-" {
-				return ""
-			}
-			return name
-		},
-	)
-	upstreamErr := validator.Struct(entity)
-	if upstreamErr == nil {
+	validationErrorsByFieldName := validator.ValidateMap(intVal, v.rules)
+	validationErr := &ValidationError{FieldErrors: make(map[string][]string)}
+	for fieldName, violation := range validationErrorsByFieldName {
+		// For some reason ValidateMap includes an empty field name, replace it with the actual field name
+		validationErr.FieldErrors[fieldName] = []string{
+			strings.Replace(
+				violation.(playgroundValidate.ValidationErrors).Error(),
+				"''",
+				fmt.Sprintf("'%s'", fieldName),
+				-1,
+			),
+		}
+	}
+	if len(validationErr.FieldErrors) == 0 {
 		return nil
 	}
-	violations, ok := upstreamErr.(playgroundValidate.ValidationErrors)
-	if !ok {
-		logrus.Error("Unexpected error type returned from validator")
-		return upstreamErr
-	}
-	validationErr := &ValidationError{FieldErrors: make(map[string][]string)}
-	for _, violation := range violations {
-		_, ok := validationErr.FieldErrors[violation.Field()]
-		if !ok {
-			validationErr.FieldErrors[violation.Field()] = make([]string, 0)
-		}
-		validationErr.FieldErrors[violation.Field()] = append(validationErr.FieldErrors[violation.Field()], violation.Error())
-	}
 	return validationErr
+}
+
+func NewGoPlaygroundValidator[Model any](
+	rules map[string]any,
+) *goPlaygroundValidator[Model] {
+	return &goPlaygroundValidator[Model]{
+		rules: rules,
+	}
 }
 
 type ValidationError struct {
