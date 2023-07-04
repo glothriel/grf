@@ -14,24 +14,24 @@ type LimitOffsetPagination struct {
 func (p *LimitOffsetPagination) Apply(c *gin.Context, db *gorm.DB) *gorm.DB {
 	if c.Query("limit") != "" {
 		limit, conversionErr := strconv.Atoi(c.Query("limit"))
-		if conversionErr != nil {
+		if conversionErr == nil {
+			db = db.Limit(limit)
+		} else {
 			logrus.Debug("Failed to convert limit to int in LimitOffsetPagination")
-			return db
 		}
-		db = db.Limit(limit)
 	}
 	if c.Query("offset") != "" {
 		offset, conversionErr := strconv.Atoi(c.Query("offset"))
-		if conversionErr != nil {
+		if conversionErr == nil {
+			db = db.Offset(offset)
+		} else {
 			logrus.Debug("Failed to convert offset to int in LimitOffsetPagination")
-			return db
 		}
-		db = db.Offset(offset)
 	}
 
 	return db
 }
 
-func (p *LimitOffsetPagination) Format(entities []any) (any, error) {
+func (p *LimitOffsetPagination) Format(c *gin.Context, entities []any) (any, error) {
 	return entities, nil
 }
