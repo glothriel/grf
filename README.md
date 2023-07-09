@@ -72,4 +72,6 @@ Other gunicorn flag variants had even lower performance.
 * Add support for output formatters
 * Add support for non-JSON types
 * Add support for translations (error messages)
+* Add validation of model field tags (consider changing `json` to custom `grf`, add warning for goplayground)
+* Improve performance with caching already allocated fields instead of using `reflect.New`
 * Add testing utils

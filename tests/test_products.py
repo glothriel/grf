@@ -155,5 +155,28 @@ def test_delete(some_products):
     assert requests.get(f"{some_products.url}/products/{product['id']}").status_code == 404
 
 
+def test_create_with_pk_field_set_not_possible(some_products):
+    """
+    Background:
+        The product with id 1 already exists
+        Client tries to create a product with id 1 (sets the id explicitly in the request)
+    Expected:
+        400 Bad Request
+    Current:
+        500 Internal Server Error (database integrity error)
+    """
+    pytest.skip("This has to be fixed")
+    product = requests.get(f"{some_products.url}/products").json()[0]
+    response = requests.post(
+        f"{some_products.url}/products",
+        json={
+            "id": product["id"],
+            "name": "foo",
+            "description": "bar",
+        },
+    )
+    assert response.status_code == 400
+
+
 def strip_created_updated_at(product_json):
     return dict({k: v for k, v in product_json.items() if k not in ("created_at", "updated_at")})
