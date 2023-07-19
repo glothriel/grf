@@ -51,8 +51,8 @@ Other gunicorn flag variants had even lower performance.
     * ~~Unlocks creating fields based on non-body data, gin context, etc - like `CurrentlyLoggedInUser` from Authorization header or so~~
 * ~~Add support for setting up middleware (fore/after request is executed), including using Gin middlewares directly~~
 * ~~Turn off passthrough if the serializer field type cannot be deduced on startup~~
-* Improve unit test coverage
-* Documentation portal
+* ~~Improve unit test coverage~~
+* ~~Documentation portal~~
 * Add support for complex to implement types:
     * time.Time
     * time.Duration
@@ -60,7 +60,7 @@ Other gunicorn flag variants had even lower performance.
     * pointer fields, for example `*string`
     * sql.Null.* fields, for example `sql.NullString`
     * JSON fields, both as text (sqlite) and as dedicated columns (eg. Postgres)
-* Add proper support for custom validators
+
 * Add support for model relations
 * Add support for viewsets
 * Add support for authentication
@@ -72,4 +72,6 @@ Other gunicorn flag variants had even lower performance.
 * Add support for output formatters
 * Add support for non-JSON types
 * Add support for translations (error messages)
+* Add validation of model field tags (consider changing `json` to custom `grf`, add warning for goplayground)
+* Improve performance with caching already allocated fields instead of using `reflect.New`
 * Add testing utils
