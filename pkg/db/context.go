@@ -27,7 +27,6 @@ func CtxSetGorm(dbResolver Resolver) func(ctx *gin.Context) {
 			logrus.Fatal("Failed to resolve db")
 		}
 
-		logrus.Error("SET GORM")
 		ctx.Set("gorm", db)
 	}
 }

@@ -141,7 +141,7 @@ func registerModel[Model any](
 	serializer := serializers.NewModelSerializer[Model]()
 
 	views.NewListCreateModelView[Model](prefix, dbResolver).WithSerializer(
-		serializer,
+		serializer,	
 	).WithOrderBy(fmt.Sprintf("%s ASC", orderBy)).Register(router)
 
 	views.NewRetrieveUpdateDeleteModelView[Model](prefix+"/:id", dbResolver).WithSerializer(
