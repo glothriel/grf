@@ -33,7 +33,7 @@ func CreateModelFunc[Model any](settings ModelViewSettings[Model]) gin.HandlerFu
 			WriteError(ctx, asModelErr)
 			return
 		}
-		createErr := db.ORM[Model](ctx).Create(&entity).Error
+		entity, createErr := settings.Queries.Create(ctx, db.ORM[Model](ctx), &entity)
 		if createErr != nil {
 			WriteError(ctx, createErr)
 			return

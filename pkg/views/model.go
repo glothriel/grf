@@ -36,9 +36,10 @@ type ModelViewSettings[Model any] struct {
 	OrderBy    QueryModFunc
 	IDFunc     func(*gin.Context) any
 	DBResolver db.Resolver
+	Queries    Queries[Model]
 }
 
-func NewDefaultModelViewContext[Model any](dbResolver db.Resolver) ModelViewSettings[Model] {
+func DefaultModelViewSettings[Model any](dbResolver db.Resolver) ModelViewSettings[Model] {
 	return ModelViewSettings[Model]{
 		DefaultSerializer: &serializers.MissingSerializer[Model]{},
 		Pagination:        &pagination.NoPagination{},
@@ -46,6 +47,7 @@ func NewDefaultModelViewContext[Model any](dbResolver db.Resolver) ModelViewSett
 		OrderBy:           QueryModPassThrough,
 		DBResolver:        dbResolver,
 		IDFunc:            IDFromQueryParamIDFunc[Model],
+		Queries:           DefaultQueries[Model](),
 	}
 }
 
@@ -127,6 +129,21 @@ func (v *ModelView[Model]) WithOrderBy(order string) *ModelView[Model] {
 	return v
 }
 
+func (v *ModelView[Model]) WithCreateQuery(f func(previous CreateQueryFunc[Model]) CreateQueryFunc[Model]) *ModelView[Model] {
+	v.Settings.Queries.Create = f(v.Settings.Queries.Create)
+	return v
+}
+
+func (v *ModelView[Model]) WithUpdateQuery(f func(previous UpdateQueryFunc[Model]) UpdateQueryFunc[Model]) *ModelView[Model] {
+	v.Settings.Queries.Update = f(v.Settings.Queries.Update)
+	return v
+}
+
+func (v *ModelView[Model]) WithDeleteQuery(f func(previous DeleteQueryFunc[Model]) DeleteQueryFunc[Model]) *ModelView[Model] {
+	v.Settings.Queries.Delete = f(v.Settings.Queries.Delete)
+	return v
+}
+
 func (v *ModelView[Model]) WithAuthentication(authenticator authentication.Authentication) *ModelView[Model] {
 	v.View.Authentication(authenticator)
 	return v
@@ -164,7 +181,7 @@ func (v *ModelView[Model]) WithDeleteHandlerFactoryFunc(factory HandlerFactoryFu
 func NewListCreateModelView[Model any](path string, dbResolver db.Resolver) *ModelView[Model] {
 	return &ModelView[Model]{
 		View:       NewView(path, dbResolver),
-		Settings:   NewDefaultModelViewContext[Model](dbResolver),
+		Settings:   DefaultModelViewSettings[Model](dbResolver),
 		ListFunc:   ListModelFunc[Model],
 		CreateFunc: CreateModelFunc[Model],
 	}
@@ -173,7 +190,7 @@ func NewListCreateModelView[Model any](path string, dbResolver db.Resolver) *Mod
 func NewRetrieveUpdateDeleteModelView[Model any](path string, dbResolver db.Resolver) *ModelView[Model] {
 	return &ModelView[Model]{
 		View:         NewView(path, dbResolver),
-		Settings:     NewDefaultModelViewContext[Model](dbResolver),
+		Settings:     DefaultModelViewSettings[Model](dbResolver),
 		RetrieveFunc: RetrieveModelFunc[Model],
 		UpdateFunc:   UpdateModelFunc[Model],
 		DeleteFunc:   DeleteModelFunc[Model],

@@ -7,9 +7,8 @@ import (
 
 func DeleteModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-
 		var entity Model
-		deleteErr := db.ORM[Model](ctx).Delete(&entity, "id = ?", modelSettings.IDFunc(ctx)).Error
+		deleteErr := modelSettings.Queries.Delete(ctx, db.ORM[Model](ctx), entity, modelSettings.IDFunc(ctx))
 		if deleteErr != nil {
 			ctx.JSON(500, gin.H{
 				"message": deleteErr.Error(),

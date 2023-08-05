@@ -121,30 +121,6 @@ func TestValidatingSerializerToRepresentation(t *testing.T) {
 	}, rep)
 }
 
-func TestValidatingSerializerFromDB(t *testing.T) {
-	// given
-	serializer := NewValidatingSerializer[mockValidatedModel](
-		NewModelSerializer[mockValidatedModel](),
-	)
-
-	// when
-	intVal, err := serializer.FromDB(map[string]any{
-		"name":       "John",
-		"surname":    "Doe",
-		"age":        20,
-		"is_married": true,
-	}, nil)
-
-	// then
-	assert.NoError(t, err)
-	assert.Equal(t, models.InternalValue{
-		"name":       "John",
-		"surname":    "Doe",
-		"age":        20,
-		"is_married": true,
-	}, intVal)
-}
-
 type mockValidator struct {
 	shouldFail bool
 }

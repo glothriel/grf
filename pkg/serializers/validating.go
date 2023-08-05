@@ -26,10 +26,6 @@ func (s *ValidatingSerializer[Model]) ToRepresentation(intVal models.InternalVal
 	return s.child.ToRepresentation(intVal, ctx)
 }
 
-func (s *ValidatingSerializer[Model]) FromDB(raw map[string]any, ctx *gin.Context) (models.InternalValue, error) {
-	return s.child.FromDB(raw, ctx)
-}
-
 func (s *ValidatingSerializer[Model]) validate(intVal models.InternalValue, ctx *gin.Context) error {
 	errors := make([]error, 0)
 	for _, validator := range s.validators {

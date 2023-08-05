@@ -8,7 +8,6 @@ import (
 
 func UpdateModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-
 		var updates map[string]any
 		if err := ctx.ShouldBindJSON(&updates); err != nil {
 			ctx.JSON(400, gin.H{
@@ -16,36 +15,45 @@ func UpdateModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.Hand
 			})
 			return
 		}
-		updates["id"] = ctx.Param("id")
+		updates["id"] = modelSettings.IDFunc(ctx)
 		effectiveSerializer := modelSettings.UpdateSerializer
 		if effectiveSerializer == nil {
 			effectiveSerializer = modelSettings.DefaultSerializer
 		}
-		intVal, fromRawErr := effectiveSerializer.ToInternalValue(updates, ctx)
+		incomingIntVal, fromRawErr := effectiveSerializer.ToInternalValue(updates, ctx)
 		if fromRawErr != nil {
 			WriteError(ctx, fromRawErr)
 			return
 		}
-		entity, asModelErr := models.AsModel[Model](intVal)
+
+		oldIntVal, oldErr := modelSettings.Queries.Retrieve(ctx, db.ORM[Model](ctx), modelSettings.IDFunc(ctx))
+		if oldErr != nil {
+			ctx.JSON(404, gin.H{
+				"message": oldErr.Error(),
+			})
+			return
+		}
+		oldEntity, asModelErr := models.AsModel[Model](oldIntVal)
 		if asModelErr != nil {
 			WriteError(ctx, asModelErr)
 			return
 		}
-		updateErr := db.ORM[Model](ctx).Model(&entity).Updates(&entity).Error
+		for k, v := range incomingIntVal {
+			oldIntVal[k] = v
+		}
+		entity, asModelErr := models.AsModel[Model](oldIntVal)
+		if asModelErr != nil {
+			WriteError(ctx, asModelErr)
+			return
+		}
+		updated, updateErr := modelSettings.Queries.Update(ctx, db.ORM[Model](ctx), &oldEntity, &entity, modelSettings.IDFunc(ctx))
 		if updateErr != nil {
 			WriteError(ctx, updateErr)
 			return
 		}
-		var updatedMap map[string]any
-		if err := db.ORM[Model](ctx).First(&updatedMap, "id = ?", modelSettings.IDFunc(ctx)).Error; err != nil {
-			ctx.JSON(404, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		internalValue, internalValueErr := effectiveSerializer.FromDB(updatedMap, ctx)
-		if internalValueErr != nil {
-			WriteError(ctx, internalValueErr)
+		internalValue, intValErr := models.AsInternalValue(updated)
+		if intValErr != nil {
+			WriteError(ctx, intValErr)
 			return
 		}
 		rawElement, toRawErr := effectiveSerializer.ToRepresentation(internalValue, ctx)
