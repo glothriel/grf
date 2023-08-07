@@ -1,4 +1,4 @@
-package pagination
+package gormdb
 
 import (
 	"strconv"
@@ -7,6 +7,21 @@ import (
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
+
+type Pagination interface {
+	Apply(*gin.Context, *gorm.DB) *gorm.DB
+	Format(*gin.Context, []any) (any, error)
+}
+
+type NoPagination struct{}
+
+func (p *NoPagination) Apply(_ *gin.Context, db *gorm.DB) *gorm.DB {
+	return db
+}
+
+func (p *NoPagination) Format(_ *gin.Context, entities []any) (any, error) {
+	return entities, nil
+}
 
 type LimitOffsetPagination struct {
 }

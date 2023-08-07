@@ -123,59 +123,6 @@ func TestModelSerializerToRepresentationFieldErr(t *testing.T) {
 	assert.ErrorContains(t, err, "foo err")
 }
 
-func TestModelSerializerFromDB(t *testing.T) {
-	// given
-	serializer := NewModelSerializer[mockModel]().WithField(
-		"foo",
-		func(f *fields.Field[mockModel]) {
-			f.WithFromDBFunc(
-				func(m map[string]any, s string, ctx *gin.Context) (any, error) {
-					return "baz", nil
-				},
-			)
-		},
-	)
-
-	// when
-	intVal, err := serializer.FromDB(map[string]any{"foo": "bar"}, nil)
-
-	// then
-	assert.NoError(t, err)
-	assert.Equal(t, models.InternalValue{"foo": "baz"}, intVal)
-}
-
-func TestModelSerializerFromDBFieldErr(t *testing.T) {
-	// given
-	serializer := NewModelSerializer[mockModel]().WithField(
-		"foo",
-		func(f *fields.Field[mockModel]) {
-			f.WithFromDBFunc(
-				func(m map[string]any, s string, ctx *gin.Context) (any, error) {
-					return nil, errors.New("foo err")
-				},
-			)
-		},
-	)
-
-	// when
-	_, err := serializer.FromDB(map[string]any{"foo": "bar"}, nil)
-
-	// then
-	assert.ErrorContains(t, err, "foo err")
-}
-
-func TestModelSerializerFromDBExtraFieldsStripped(t *testing.T) {
-	// given
-	serializer := NewModelSerializer[mockModel]()
-
-	// when
-	intVal, err := serializer.FromDB(map[string]any{"foo": "bar", "baz": "qux"}, nil)
-
-	// then
-	assert.NoError(t, err)
-	assert.Equal(t, models.InternalValue{"foo": "bar"}, intVal)
-}
-
 func TestModelSerializerValidate(t *testing.T) {
 	// given
 	serializer := NewModelSerializer[mockModel]()

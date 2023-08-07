@@ -116,6 +116,13 @@ def test_list(some_products):
     ]
 
 
+def test_list_empty(server_factory):
+    with server_factory.create("products") as server:
+        response = requests.get(f"{server.url}/products")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
 def test_retrieve(some_products):
     product = requests.get(f"{some_products.url}/products").json()[0]
     response = requests.get(f"{some_products.url}/products/{product['id']}")
