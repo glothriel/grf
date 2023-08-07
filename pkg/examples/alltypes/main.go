@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glothriel/grf/pkg/db"
+	"github.com/glothriel/grf/pkg/db/gormdb"
 	"github.com/glothriel/grf/pkg/fields"
 	"github.com/glothriel/grf/pkg/models"
 	"github.com/glothriel/grf/pkg/serializers"
@@ -106,45 +106,43 @@ func main() {
 	if err != nil {
 		panic("failed to connect database")
 	}
-	dbResolver := db.NewStaticResolver(gormDB)
 
-	registerModel[BoolModel](router, dbResolver, gormDB, "/bool_field", "created_at")
-	registerModel[StringModel](router, dbResolver, gormDB, "/string_field", "created_at")
-	// registerModel[StringPtrModel](router, dbResolver, gormDB, "/string_pointer_field", "created_at")
-	registerModel[IntModel](router, dbResolver, gormDB, "/int_field", "created_at")
-	registerModel[UintModel](router, dbResolver, gormDB, "/uint_field", "created_at")
-	registerModel[FloatModel](router, dbResolver, gormDB, "/float_field", "created_at")
-	registerModel[StringSliceModel](router, dbResolver, gormDB, "/string_slice_field", "created_at")
-	registerModel[FloatSliceModel](router, dbResolver, gormDB, "/float_slice_field", "created_at")
-	registerModel[MapSliceModel](router, dbResolver, gormDB, "/map_slice_field", "created_at")
-	registerModel[BoolSliceModel](router, dbResolver, gormDB, "/bool_slice_field", "created_at")
+	registerModel[BoolModel](router, gormDB, "/bool_field", "created_at")
+	registerModel[StringModel](router, gormDB, "/string_field", "created_at")
+	// registerModel[StringPtrModel](router, gormDB, "/string_pointer_field", "created_at")
+	registerModel[IntModel](router, gormDB, "/int_field", "created_at")
+	registerModel[UintModel](router, gormDB, "/uint_field", "created_at")
+	registerModel[FloatModel](router, gormDB, "/float_field", "created_at")
+	registerModel[StringSliceModel](router, gormDB, "/string_slice_field", "created_at")
+	registerModel[FloatSliceModel](router, gormDB, "/float_slice_field", "created_at")
+	registerModel[MapSliceModel](router, gormDB, "/map_slice_field", "created_at")
+	registerModel[BoolSliceModel](router, gormDB, "/bool_slice_field", "created_at")
 
-	// registerModel[DurationModel](router, dbResolver, gormDB, "/duration_field", "created_at")
-	registerModel[DateTimeModel](router, dbResolver, gormDB, "/datetime_field", "created_at")
-	registerModel[IntSliceModel](router, dbResolver, gormDB, "/int_slice_field", "created_at")
-	// registerModel[NullStringModel](router, dbResolver, gormDB, "/null_string_field", "created_at")
+	// registerModel[DurationModel](router, gormDB, "/duration_field", "created_at")
+	registerModel[DateTimeModel](router, gormDB, "/datetime_field", "created_at")
+	registerModel[IntSliceModel](router, gormDB, "/int_slice_field", "created_at")
+	// registerModel[NullStringModel](router, gormDB, "/null_string_field", "created_at")
 
-	registerModel[AnySliceModel](router, dbResolver, gormDB, "/any_slice_field", "created_at")
+	registerModel[AnySliceModel](router, gormDB, "/any_slice_field", "created_at")
 
-	registerModel[TwoDStringSliceModel](router, dbResolver, gormDB, "/two_d_string_slice_field", "created_at")
+	registerModel[TwoDStringSliceModel](router, gormDB, "/two_d_string_slice_field", "created_at")
 
 	logrus.Fatal(router.Run(fmt.Sprintf(":%d", *serverPort)))
 }
 
 func registerModel[Model any](
 	router *gin.Engine,
-	dbResolver db.Resolver,
 	gormDB *gorm.DB,
 	prefix string,
 	orderBy string,
 ) {
 	serializer := serializers.NewModelSerializer[Model]()
 
-	views.NewListCreateModelView[Model](prefix, dbResolver).WithSerializer(
-		serializer,	
-	).WithOrderBy(fmt.Sprintf("%s ASC", orderBy)).Register(router)
+	views.NewListCreateModelView[Model](prefix, gormdb.Gorm[Model](gormDB).WithOrderBy(fmt.Sprintf("%s ASC", orderBy))).WithSerializer(
+		serializer,
+	).Register(router)
 
-	views.NewRetrieveUpdateDeleteModelView[Model](prefix+"/:id", dbResolver).WithSerializer(
+	views.NewRetrieveUpdateDeleteModelView[Model](prefix+"/:id", gormdb.Gorm[Model](gormDB)).WithSerializer(
 		serializer,
 	).Register(router)
 

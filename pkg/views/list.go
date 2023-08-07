@@ -2,7 +2,6 @@ package views
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/glothriel/grf/pkg/db"
 )
 
 func ListModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.HandlerFunc {
@@ -11,17 +10,17 @@ func ListModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.Handle
 		if effectiveSerializer == nil {
 			effectiveSerializer = modelSettings.DefaultSerializer
 		}
-		internalValues, _, listErr := modelSettings.Queries.List(ctx, modelSettings.Pagination.Apply(
-			ctx,
-			modelSettings.OrderBy(ctx, modelSettings.Filter(ctx, db.ORM[Model](ctx))),
-		))
+		modelSettings.Database.Filter().Apply(ctx)
+		modelSettings.Database.Order().Apply(ctx)
+		modelSettings.Database.Pagination().Apply(ctx)
+		internalValues, listErr := modelSettings.Database.Queries().List(ctx)
 		if listErr != nil {
 			ctx.JSON(500, gin.H{
 				"message": listErr.Error(),
 			})
 			return
 		}
-		representationItems := []map[string]any{}
+		representationItems := []any{}
 		for _, internalValue := range internalValues {
 			rawElement, toRawErr := effectiveSerializer.ToRepresentation(
 				internalValue, ctx,
@@ -35,6 +34,13 @@ func ListModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.Handle
 			}
 			representationItems = append(representationItems, rawElement)
 		}
-		ctx.JSON(200, representationItems)
+		retVal, formatErr := modelSettings.Database.Pagination().Format(ctx, representationItems)
+		if formatErr != nil {
+			ctx.JSON(500, gin.H{
+				"message": formatErr.Error(),
+			})
+			return
+		}
+		ctx.JSON(200, retVal)
 	}
 }

@@ -5,23 +5,9 @@ import (
 	"github.com/glothriel/grf/pkg/authentication"
 
 	"github.com/glothriel/grf/pkg/db"
-	"github.com/glothriel/grf/pkg/pagination"
 	"github.com/glothriel/grf/pkg/serializers"
 	"github.com/glothriel/grf/pkg/types"
-	"gorm.io/gorm"
 )
-
-type QueryModFunc func(*gin.Context, *gorm.DB) *gorm.DB
-
-func QueryModPassThrough(ctx *gin.Context, db *gorm.DB) *gorm.DB {
-	return db
-}
-
-func QueryModOrderBy(order string) QueryModFunc {
-	return func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
-		return db.Order(order)
-	}
-}
 
 type ModelViewSettings[Model any] struct {
 	DefaultSerializer  serializers.Serializer
@@ -31,23 +17,15 @@ type ModelViewSettings[Model any] struct {
 	CreateSerializer   serializers.Serializer
 	DeleteSerializer   serializers.Serializer
 
-	Pagination pagination.Pagination
-	Filter     QueryModFunc
-	OrderBy    QueryModFunc
-	IDFunc     func(*gin.Context) any
-	DBResolver db.Resolver
-	Queries    Queries[Model]
+	IDFunc   func(*gin.Context) any
+	Database db.Database[Model]
 }
 
-func DefaultModelViewSettings[Model any](dbResolver db.Resolver) ModelViewSettings[Model] {
+func DefaultModelViewSettings[Model any](database db.Database[Model]) ModelViewSettings[Model] {
 	return ModelViewSettings[Model]{
 		DefaultSerializer: &serializers.MissingSerializer[Model]{},
-		Pagination:        &pagination.NoPagination{},
-		Filter:            QueryModPassThrough,
-		OrderBy:           QueryModPassThrough,
-		DBResolver:        dbResolver,
+		Database:          database,
 		IDFunc:            IDFromQueryParamIDFunc[Model],
-		Queries:           DefaultQueries[Model](),
 	}
 }
 
@@ -114,33 +92,38 @@ func (v *ModelView[Model]) WithDeleteSerializer(serializer serializers.Serialize
 	return v
 }
 
-func (v *ModelView[Model]) WithPagination(pagination pagination.Pagination) *ModelView[Model] {
-	v.Settings.Pagination = pagination
+func (v *ModelView[Model]) WithRetrieveQuery(f func(previous db.RetrieveQueryFunc[Model]) db.RetrieveQueryFunc[Model]) *ModelView[Model] {
+	v.Settings.Database.Queries().WithRetrieve(
+		f(v.Settings.Database.Queries().Retrieve),
+	)
 	return v
 }
 
-func (v *ModelView[Model]) WithFilter(filter QueryModFunc) *ModelView[Model] {
-	v.Settings.Filter = filter
+func (v *ModelView[Model]) WithListQuery(f func(previous db.ListQueryFunc[Model]) db.ListQueryFunc[Model]) *ModelView[Model] {
+	v.Settings.Database.Queries().WithList(
+		f(v.Settings.Database.Queries().List),
+	)
 	return v
 }
 
-func (v *ModelView[Model]) WithOrderBy(order string) *ModelView[Model] {
-	v.Settings.OrderBy = QueryModOrderBy(order)
+func (v *ModelView[Model]) WithCreateQuery(f func(previous db.CreateQueryFunc[Model]) db.CreateQueryFunc[Model]) *ModelView[Model] {
+	v.Settings.Database.Queries().WithCreate(
+		f(v.Settings.Database.Queries().Create),
+	)
 	return v
 }
 
-func (v *ModelView[Model]) WithCreateQuery(f func(previous CreateQueryFunc[Model]) CreateQueryFunc[Model]) *ModelView[Model] {
-	v.Settings.Queries.Create = f(v.Settings.Queries.Create)
+func (v *ModelView[Model]) WithUpdateQuery(f func(previous db.UpdateQueryFunc[Model]) db.UpdateQueryFunc[Model]) *ModelView[Model] {
+	v.Settings.Database.Queries().WithUpdate(
+		f(v.Settings.Database.Queries().Update),
+	)
 	return v
 }
 
-func (v *ModelView[Model]) WithUpdateQuery(f func(previous UpdateQueryFunc[Model]) UpdateQueryFunc[Model]) *ModelView[Model] {
-	v.Settings.Queries.Update = f(v.Settings.Queries.Update)
-	return v
-}
-
-func (v *ModelView[Model]) WithDeleteQuery(f func(previous DeleteQueryFunc[Model]) DeleteQueryFunc[Model]) *ModelView[Model] {
-	v.Settings.Queries.Delete = f(v.Settings.Queries.Delete)
+func (v *ModelView[Model]) WithDeleteQuery(f func(previous db.DeleteQueryFunc[Model]) db.DeleteQueryFunc[Model]) *ModelView[Model] {
+	v.Settings.Database.Queries().WithDelete(
+		f(v.Settings.Database.Queries().Delete),
+	)
 	return v
 }
 
@@ -178,19 +161,19 @@ func (v *ModelView[Model]) WithDeleteHandlerFactoryFunc(factory HandlerFactoryFu
 	return v
 }
 
-func NewListCreateModelView[Model any](path string, dbResolver db.Resolver) *ModelView[Model] {
+func NewListCreateModelView[Model any](path string, database db.Database[Model]) *ModelView[Model] {
 	return &ModelView[Model]{
-		View:       NewView(path, dbResolver),
-		Settings:   DefaultModelViewSettings[Model](dbResolver),
+		View:       NewView(path, database),
+		Settings:   DefaultModelViewSettings[Model](database),
 		ListFunc:   ListModelFunc[Model],
 		CreateFunc: CreateModelFunc[Model],
 	}
 }
 
-func NewRetrieveUpdateDeleteModelView[Model any](path string, dbResolver db.Resolver) *ModelView[Model] {
+func NewRetrieveUpdateDeleteModelView[Model any](path string, database db.Database[Model]) *ModelView[Model] {
 	return &ModelView[Model]{
-		View:         NewView(path, dbResolver),
-		Settings:     DefaultModelViewSettings[Model](dbResolver),
+		View:         NewView(path, database),
+		Settings:     DefaultModelViewSettings[Model](database),
 		RetrieveFunc: RetrieveModelFunc[Model],
 		UpdateFunc:   UpdateModelFunc[Model],
 		DeleteFunc:   DeleteModelFunc[Model],

@@ -83,7 +83,7 @@ func (v *View) authenticated(h gin.HandlerFunc) gin.HandlerFunc {
 	}
 }
 
-func NewView(path string, dbResolver db.Resolver) *View {
+func NewView[Model any](path string, database db.Database[Model]) *View {
 	defaultHandler := func(ctx *gin.Context) {
 		ctx.JSON(http.StatusMethodNotAllowed, gin.H{
 			"message": "Not allowed",
@@ -99,8 +99,6 @@ func NewView(path string, dbResolver db.Resolver) *View {
 		patchHandler:  defaultHandler,
 		authenticator: &authentication.AnonymousUserAuthentication{},
 
-		middleware: []gin.HandlerFunc{
-			db.CtxSetGorm(dbResolver),
-		},
+		middleware: database.Middleware(),
 	}
 }

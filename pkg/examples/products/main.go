@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glothriel/grf/pkg/db"
+	"github.com/glothriel/grf/pkg/db/gormdb"
 	"github.com/glothriel/grf/pkg/models"
 	"github.com/glothriel/grf/pkg/serializers"
 	"github.com/glothriel/grf/pkg/views"
@@ -39,7 +39,6 @@ func main() {
 	if migrateErr := gormDB.AutoMigrate(&Product{}); migrateErr != nil {
 		logrus.Fatalf("Error migrating database: %s", migrateErr)
 	}
-	dbResolver := db.NewStaticResolver(gormDB)
 
 	validator := serializers.NewGoPlaygroundValidator[Product](
 		map[string]any{
@@ -48,7 +47,16 @@ func main() {
 		},
 	)
 
-	views.NewListCreateModelView[Product]("/products", dbResolver).WithSerializer(
+	database := gormdb.Gorm[Product](gormDB).WithFilter(
+		func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
+			if ctx.Query("name") != "" {
+				return db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", ctx.Query("name")))
+			}
+			return db
+		},
+	).WithOrderBy("name ASC")
+
+	views.NewListCreateModelView[Product]("/products", database).WithSerializer(
 		serializers.NewValidatingSerializer[Product](
 			serializers.NewModelSerializer[Product](),
 			validator,
@@ -56,16 +64,9 @@ func main() {
 	).WithListSerializer(
 		serializers.NewModelSerializer[Product]().
 			WithModelFields([]string{"id", "name"}),
-	).WithFilter(
-		func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
-			if ctx.Query("name") != "" {
-				return db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", ctx.Query("name")))
-			}
-			return db
-		},
-	).WithOrderBy("name ASC").Register(router)
+	).Register(router)
 
-	views.NewRetrieveUpdateDeleteModelView[Product]("/products/:id", dbResolver).WithSerializer(
+	views.NewRetrieveUpdateDeleteModelView[Product]("/products/:id", database).WithSerializer(
 		serializers.NewValidatingSerializer[Product](
 			serializers.NewModelSerializer[Product](),
 			validator,

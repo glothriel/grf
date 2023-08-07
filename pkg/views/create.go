@@ -1,17 +1,20 @@
+// Package views provides a set of functions that can be used to create views for models.
 package views
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 
-	"github.com/glothriel/grf/pkg/db"
 	"github.com/glothriel/grf/pkg/models"
 )
 
+// CreateModelFunc is a function that creates a new model
 func CreateModelFunc[Model any](settings ModelViewSettings[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var rawElement map[string]any
 		if err := ctx.ShouldBindJSON(&rawElement); err != nil {
-			ctx.JSON(400, gin.H{
+			ctx.JSON(http.StatusBadRequest, gin.H{
 				"message": err.Error(),
 			})
 			return
@@ -33,7 +36,7 @@ func CreateModelFunc[Model any](settings ModelViewSettings[Model]) gin.HandlerFu
 			WriteError(ctx, asModelErr)
 			return
 		}
-		entity, createErr := settings.Queries.Create(ctx, db.ORM[Model](ctx), &entity)
+		entity, createErr := settings.Database.Queries().Create(ctx, &entity)
 		if createErr != nil {
 			WriteError(ctx, createErr)
 			return
@@ -45,11 +48,11 @@ func CreateModelFunc[Model any](settings ModelViewSettings[Model]) gin.HandlerFu
 		}
 		representation, serializeErr := effectiveSerializer.ToRepresentation(internalValue, ctx)
 		if serializeErr != nil {
-			ctx.JSON(500, gin.H{
+			ctx.JSON(http.StatusInternalServerError, gin.H{
 				"message": serializeErr.Error(),
 			})
 			return
 		}
-		ctx.JSON(201, representation)
+		ctx.JSON(http.StatusCreated, representation)
 	}
 }

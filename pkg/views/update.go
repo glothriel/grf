@@ -2,7 +2,6 @@ package views
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/glothriel/grf/pkg/db"
 	"github.com/glothriel/grf/pkg/models"
 )
 
@@ -26,7 +25,7 @@ func UpdateModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.Hand
 			return
 		}
 
-		oldIntVal, oldErr := modelSettings.Queries.Retrieve(ctx, db.ORM[Model](ctx), modelSettings.IDFunc(ctx))
+		oldIntVal, oldErr := modelSettings.Database.Queries().Retrieve(ctx, modelSettings.IDFunc(ctx))
 		if oldErr != nil {
 			ctx.JSON(404, gin.H{
 				"message": oldErr.Error(),
@@ -46,7 +45,7 @@ func UpdateModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.Hand
 			WriteError(ctx, asModelErr)
 			return
 		}
-		updated, updateErr := modelSettings.Queries.Update(ctx, db.ORM[Model](ctx), &oldEntity, &entity, modelSettings.IDFunc(ctx))
+		updated, updateErr := modelSettings.Database.Queries().Update(ctx, &oldEntity, &entity, modelSettings.IDFunc(ctx))
 		if updateErr != nil {
 			WriteError(ctx, updateErr)
 			return

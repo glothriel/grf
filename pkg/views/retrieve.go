@@ -2,12 +2,12 @@ package views
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/glothriel/grf/pkg/db"
 )
 
 func RetrieveModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		internalValue, retrieveErr := modelSettings.Queries.Retrieve(ctx, db.ORM[Model](ctx), modelSettings.IDFunc(ctx))
+		modelSettings.Database.Filter().Apply(ctx)
+		internalValue, retrieveErr := modelSettings.Database.Queries().Retrieve(ctx, modelSettings.IDFunc(ctx))
 		if retrieveErr != nil {
 			ctx.JSON(404, gin.H{
 				"message": retrieveErr.Error(),

@@ -69,23 +69,6 @@ func (s *ModelSerializer[Model]) ToRepresentation(intVal models.InternalValue, c
 	return raw, nil
 }
 
-func (s *ModelSerializer[Model]) FromDB(raw map[string]any, ctx *gin.Context) (models.InternalValue, error) {
-	intVMap := make(models.InternalValue)
-	for k := range raw {
-		field, ok := s.Fields[k]
-		if !ok {
-			continue
-		}
-		intV, err := field.FromDB(raw, ctx)
-		if err != nil {
-			return nil, fmt.Errorf("Failed to serialize field `%s` from database: %s", k, err)
-		}
-		intVMap[k] = intV
-	}
-
-	return intVMap, nil
-}
-
 func (s *ModelSerializer[Model]) Validate(intVal models.InternalValue, ctx *gin.Context) error {
 	return nil
 }

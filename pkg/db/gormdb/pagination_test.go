@@ -1,4 +1,4 @@
-package pagination
+package gormdb
 
 import (
 	"net/http/httptest"
@@ -68,6 +68,31 @@ func TestLimitOffsetPaginationApplyInvalidOffset(t *testing.T) {
 func TestLimitOffsetPaginationFormat(t *testing.T) {
 	// given
 	p := &LimitOffsetPagination{}
+	entities := []any{"test"}
+
+	// when
+	formattedEntities, err := p.Format(&gin.Context{}, entities)
+
+	// then
+	assert.NoError(t, err)
+	assert.Equal(t, entities, formattedEntities)
+}
+
+func TestNoPagination_Apply(t *testing.T) {
+	// given
+	p := &NoPagination{}
+	initialDb := &gorm.DB{}
+
+	// when
+	db := p.Apply(&gin.Context{}, &gorm.DB{})
+
+	// then
+	assert.Equal(t, initialDb, db)
+}
+
+func TestNoPagination_Format(t *testing.T) {
+	// given
+	p := &NoPagination{}
 	entities := []any{"test"}
 
 	// when
