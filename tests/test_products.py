@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 import requests
 from tests.utils import AnyUUID
@@ -116,6 +118,21 @@ def test_list(some_products):
     ]
 
 
+def test_list_filter(some_products):
+    response = requests.get(f"{some_products.url}/products?name=B")
+    assert response.status_code == 200
+    assert list(sorted(response.json(), key=lambda x: x["name"])) == [
+        {
+            "id": AnyUUID(),
+            "name": "Bread",
+        },
+        {
+            "id": AnyUUID(),
+            "name": "Butter",
+        },
+    ]
+
+
 def test_list_empty(server_factory):
     with server_factory.create("products") as server:
         response = requests.get(f"{server.url}/products")
@@ -133,6 +150,12 @@ def test_retrieve(some_products):
         "description": "Freshly picked from the tree",
         "price": "21",
     }
+
+
+def test_retrieve_does_not_exist(some_products):
+    response = requests.get(f"{some_products.url}/products/{uuid.uuid4()}")
+    assert response.status_code == 404
+    assert response.json() == {"message": "not found"}
 
 
 def test_update(some_products):
@@ -154,12 +177,47 @@ def test_update(some_products):
     assert response.status_code == 200
 
 
+def test_update_superfluous_fields(some_products):
+    product = requests.get(f"{some_products.url}/products").json()[0]
+
+    response = requests.put(
+        f"{some_products.url}/products/{product['id']}",
+        json={
+            "name": "updatedfoo",
+            "description": "updatedbar",
+            "superfluous": "baz",
+        },
+    )
+    assert response.status_code == 400
+    assert list(sorted(response.json()["errors"].keys())) == ["superfluous"]
+
+
+def test_update_unexpected_type_name_as_float(some_products):
+    product = requests.get(f"{some_products.url}/products").json()[0]
+
+    response = requests.put(
+        f"{some_products.url}/products/{product['id']}",
+        json={
+            "name": 1.0,
+            "description": "updatedbar",
+        },
+    )
+    assert response.status_code == 400
+    assert list(sorted(response.json()["errors"].keys())) == ["name"]
+
+
 def test_delete(some_products):
     product = requests.get(f"{some_products.url}/products").json()[0]
     response = requests.delete(f"{some_products.url}/products/{product['id']}")
     assert response.status_code == 204
     assert response.content == b""
     assert requests.get(f"{some_products.url}/products/{product['id']}").status_code == 404
+
+
+def test_delete_does_not_exist(some_products):
+    response = requests.delete(f"{some_products.url}/products/{uuid.uuid4()}")
+    assert response.status_code == 404
+    assert response.json() == {"message": "not found"}
 
 
 def test_create_with_pk_field_set_not_possible(some_products):

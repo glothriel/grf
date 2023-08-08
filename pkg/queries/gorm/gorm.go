@@ -1,10 +1,13 @@
-package gormdb
+package gorm
 
 import (
+	"fmt"
+
 	"github.com/gin-gonic/gin"
-	"github.com/glothriel/grf/pkg/db"
 	"github.com/glothriel/grf/pkg/fields"
 	"github.com/glothriel/grf/pkg/models"
+	"github.com/glothriel/grf/pkg/queries/common"
+	"github.com/glothriel/grf/pkg/queries/crud"
 	"gorm.io/gorm"
 )
 
@@ -30,8 +33,8 @@ func (g gormPagination[Model]) Format(ctx *gin.Context, elems []any) (any, error
 	return g.child.Format(ctx, elems)
 }
 
-type GormDatabase[Model any] struct {
-	queries    *db.Queries[Model]
+type GormQueryDriver[Model any] struct {
+	crud       *crud.CRUD[Model]
 	filter     *gormQueryMod[Model]
 	order      *gormQueryMod[Model]
 	pagination *gormPagination[Model]
@@ -39,46 +42,46 @@ type GormDatabase[Model any] struct {
 	middleware []gin.HandlerFunc
 }
 
-func (g GormDatabase[Model]) Queries() *db.Queries[Model] {
-	return g.queries
+func (g GormQueryDriver[Model]) CRUD() *crud.CRUD[Model] {
+	return g.crud
 }
 
-func (g GormDatabase[Model]) Filter() db.QueryMod {
+func (g GormQueryDriver[Model]) Filter() common.QueryMod {
 	return g.filter
 }
 
-func (g GormDatabase[Model]) Order() db.QueryMod {
+func (g GormQueryDriver[Model]) Order() common.QueryMod {
 	return g.order
 }
 
-func (g GormDatabase[Model]) Pagination() db.Pagination {
+func (g GormQueryDriver[Model]) Pagination() common.Pagination {
 	return g.pagination
 }
 
-func (g GormDatabase[Model]) Middleware() []gin.HandlerFunc {
+func (g GormQueryDriver[Model]) Middleware() []gin.HandlerFunc {
 	return g.middleware
 }
 
-func (g *GormDatabase[Model]) WithFilter(filterFunc GormFilterFunc) *GormDatabase[Model] {
+func (g *GormQueryDriver[Model]) WithFilter(filterFunc GormFilterFunc) *GormQueryDriver[Model] {
 	g.filter.modFunc = filterFunc
 	return g
 }
 
-func (g *GormDatabase[Model]) WithPagination(pagination Pagination) *GormDatabase[Model] {
+func (g *GormQueryDriver[Model]) WithPagination(pagination Pagination) *GormQueryDriver[Model] {
 	g.pagination.child = pagination
 	return g
 }
 
-func (g *GormDatabase[Model]) WithOrderBy(orderClause any) *GormDatabase[Model] {
+func (g *GormQueryDriver[Model]) WithOrderBy(orderClause any) *GormQueryDriver[Model] {
 	g.order.modFunc = func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
 		return db.Order(orderClause)
 	}
 	return g
 }
 
-func Gorm[Model any](db *gorm.DB) *GormDatabase[Model] {
-	return &GormDatabase[Model]{
-		queries: GormQueries[Model](),
+func Gorm[Model any](db *gorm.DB) *GormQueryDriver[Model] {
+	return &GormQueryDriver[Model]{
+		crud: GormQueries[Model](),
 		filter: &gormQueryMod[Model]{
 			modFunc: func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
 				return db
@@ -103,20 +106,19 @@ func Gorm[Model any](db *gorm.DB) *GormDatabase[Model] {
 }
 
 // GormQueries returns default queries providing basic CRUD functionality
-func GormQueries[Model any]() *db.Queries[Model] {
-	converter := FromDBConverter[Model]()
-	var emptyModelForDBModel Model
+func GormQueries[Model any]() *crud.CRUD[Model] {
+	convertFromDBToInternalValue := FromDBConverter[Model]()
 
-	return &db.Queries[Model]{
+	return &crud.CRUD[Model]{
 		List: func(ctx *gin.Context) ([]models.InternalValue, error) {
 			rawEntities := []map[string]any{}
-			findErr := CtxQuery[Model](ctx).Model(&emptyModelForDBModel).Find(&rawEntities).Error
+			findErr := CtxQuery[Model](ctx).Find(&rawEntities).Error
 			if findErr != nil {
 				return nil, findErr
 			}
 			internalValues := make([]models.InternalValue, len(rawEntities))
 			for i, rawEntity := range rawEntities {
-				internalValue, convertErr := converter(rawEntity)
+				internalValue, convertErr := convertFromDBToInternalValue(rawEntity)
 				if convertErr != nil {
 					return nil, convertErr
 				}
@@ -126,26 +128,49 @@ func GormQueries[Model any]() *db.Queries[Model] {
 		},
 		Retrieve: func(ctx *gin.Context, id any) (models.InternalValue, error) {
 			var rawEntity map[string]any
-			retrieveErr := CtxQuery[Model](ctx).Model(&emptyModelForDBModel).First(&rawEntity, "id = ?", id).Error
+			retrieveErr := CtxQuery[Model](ctx).First(&rawEntity, "id = ?", id).Error
 			if retrieveErr != nil {
+				if retrieveErr == gorm.ErrRecordNotFound {
+					return nil, common.ErrorNotFound
+				}
 				return nil, retrieveErr
 			}
-			return converter(rawEntity)
+			return convertFromDBToInternalValue(rawEntity)
 		},
-		Create: func(ctx *gin.Context, m *Model) (Model, error) {
-			createErr := CtxQuery[Model](ctx).Create(m).Error
-			return *m, createErr
-		},
-		Update: func(ctx *gin.Context, old *Model, new *Model, id any) (Model, error) {
-			updateErr := CtxQuery[Model](ctx).Model(new).Updates(new).Error
-			if updateErr != nil {
-				return *new, updateErr
+		Create: func(ctx *gin.Context, m models.InternalValue) (models.InternalValue, error) {
+			entity, asModelErr := models.AsModel[Model](m)
+			if asModelErr != nil {
+				return nil, asModelErr
 			}
-			return *new, nil
+			createErr := CtxQuery[Model](ctx).Create(&entity).Error
+			return models.AsInternalValue(entity), createErr
 		},
-		Delete: func(ctx *gin.Context, m Model, id any) error {
-			deleteErr := CtxQuery[Model](ctx).Delete(&m, "id = ?", id).Error
-			return deleteErr
+		Update: func(ctx *gin.Context, old models.InternalValue, new models.InternalValue, id any) (
+			models.InternalValue, error,
+		) {
+			entity, asModelErr := models.AsModel[Model](new)
+			if asModelErr != nil {
+				return nil, asModelErr
+			}
+			updateErr := CtxQuery[Model](ctx).Model(&entity).Updates(&entity).Error
+			if updateErr != nil {
+				return nil, updateErr
+			}
+			return models.AsInternalValue(entity), nil
+		},
+		Delete: func(ctx *gin.Context, id any) error {
+			var m Model
+			errWrapMsg := "could not delete entity"
+			queryResult := CtxQuery[Model](ctx).Delete(&m, "id = ?", id)
+			if queryResult.Error != nil {
+				return fmt.Errorf(
+					"%s: query error: %w", errWrapMsg, queryResult.Error,
+				)
+			}
+			if queryResult.RowsAffected == 0 {
+				return common.ErrorNotFound
+			}
+			return nil
 		},
 	}
 }

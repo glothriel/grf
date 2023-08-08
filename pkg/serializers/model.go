@@ -3,7 +3,6 @@ package serializers
 import (
 	"fmt"
 	"reflect"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/detectors"
@@ -39,12 +38,8 @@ func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any, ctx *gin.Co
 	}
 	if len(superfluousFields) > 0 {
 		errMap := map[string][]string{}
-		existingFields := []string{}
-		for _, field := range s.Fields {
-			existingFields = append(existingFields, field.Name())
-		}
 		for _, field := range superfluousFields {
-			errMap[field] = []string{fmt.Sprintf("Field `%s` is not accepted by this endpoint, accepted fields: %s", field, strings.Join(existingFields, ", "))}
+			errMap[field] = []string{fmt.Sprintf("Field `%s` is not accepted by this endpoint", field)}
 		}
 		return nil, &ValidationError{FieldErrors: errMap}
 	}

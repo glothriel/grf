@@ -1,4 +1,4 @@
-package gormdb
+package gorm
 
 import (
 	"net/http/httptest"

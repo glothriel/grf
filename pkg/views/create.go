@@ -5,18 +5,14 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-
-	"github.com/glothriel/grf/pkg/models"
 )
 
 // CreateModelFunc is a function that creates a new model
 func CreateModelFunc[Model any](settings ModelViewSettings[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var rawElement map[string]any
-		if err := ctx.ShouldBindJSON(&rawElement); err != nil {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
+		if parseErr := ctx.ShouldBindJSON(&rawElement); parseErr != nil {
+			WriteError(ctx, parseErr)
 			return
 		}
 		effectiveSerializer := settings.CreateSerializer
@@ -28,22 +24,9 @@ func CreateModelFunc[Model any](settings ModelViewSettings[Model]) gin.HandlerFu
 			WriteError(ctx, fromRawErr)
 			return
 		}
-		// Gorm supports creating rows using maps, but we cannot use that, because in that case
-		// Gorm won't execute hooks. UUID-based PKs require a hook to be executed. That's why we
-		// convert the map to a struct and execute the query, despite reflection being slow.
-		entity, asModelErr := models.AsModel[Model](internalValue)
-		if asModelErr != nil {
-			WriteError(ctx, asModelErr)
-			return
-		}
-		entity, createErr := settings.Database.Queries().Create(ctx, &entity)
+		internalValue, createErr := settings.QueryDriver.CRUD().Create(ctx, internalValue)
 		if createErr != nil {
 			WriteError(ctx, createErr)
-			return
-		}
-		internalValue, internalValueErr := models.AsInternalValue(entity)
-		if internalValueErr != nil {
-			WriteError(ctx, internalValueErr)
 			return
 		}
 		representation, serializeErr := effectiveSerializer.ToRepresentation(internalValue, ctx)

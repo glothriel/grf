@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glothriel/grf/pkg/db/gormdb"
 	"github.com/glothriel/grf/pkg/fields"
 	"github.com/glothriel/grf/pkg/models"
+	"github.com/glothriel/grf/pkg/queries"
 	"github.com/glothriel/grf/pkg/serializers"
 	"github.com/glothriel/grf/pkg/views"
 	"github.com/sirupsen/logrus"
@@ -138,11 +138,11 @@ func registerModel[Model any](
 ) {
 	serializer := serializers.NewModelSerializer[Model]()
 
-	views.NewListCreateModelView[Model](prefix, gormdb.Gorm[Model](gormDB).WithOrderBy(fmt.Sprintf("%s ASC", orderBy))).WithSerializer(
+	views.NewListCreateModelView[Model](prefix, queries.GORM[Model](gormDB).WithOrderBy(fmt.Sprintf("%s ASC", orderBy))).WithSerializer(
 		serializer,
 	).Register(router)
 
-	views.NewRetrieveUpdateDeleteModelView[Model](prefix+"/:id", gormdb.Gorm[Model](gormDB)).WithSerializer(
+	views.NewRetrieveUpdateDeleteModelView[Model](prefix+"/:id", queries.GORM[Model](gormDB)).WithSerializer(
 		serializer,
 	).Register(router)
 

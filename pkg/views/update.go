@@ -1,6 +1,8 @@
 package views
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/models"
 )
@@ -8,13 +10,19 @@ import (
 func UpdateModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		var updates map[string]any
-		if err := ctx.ShouldBindJSON(&updates); err != nil {
-			ctx.JSON(400, gin.H{
-				"message": err.Error(),
-			})
-			return
+		if parseErr := ctx.ShouldBindJSON(&updates); parseErr != nil {
+			WriteError(ctx, parseErr)
 		}
-		updates["id"] = modelSettings.IDFunc(ctx)
+		if idFromBody, ok := updates["id"]; ok {
+			if idFromBody != modelSettings.IDFunc(ctx) {
+				ctx.JSON(http.StatusBadRequest, gin.H{
+					"message": "id in body does not match id in url",
+				})
+				return
+			}
+		} else {
+			updates["id"] = modelSettings.IDFunc(ctx)
+		}
 		effectiveSerializer := modelSettings.UpdateSerializer
 		if effectiveSerializer == nil {
 			effectiveSerializer = modelSettings.DefaultSerializer
@@ -24,44 +32,30 @@ func UpdateModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.Hand
 			WriteError(ctx, fromRawErr)
 			return
 		}
-
-		oldIntVal, oldErr := modelSettings.Database.Queries().Retrieve(ctx, modelSettings.IDFunc(ctx))
+		oldIntVal, oldErr := modelSettings.QueryDriver.CRUD().Retrieve(ctx, modelSettings.IDFunc(ctx))
 		if oldErr != nil {
-			ctx.JSON(404, gin.H{
-				"message": oldErr.Error(),
-			})
+			WriteError(ctx, oldErr)
 			return
 		}
-		oldEntity, asModelErr := models.AsModel[Model](oldIntVal)
-		if asModelErr != nil {
-			WriteError(ctx, asModelErr)
-			return
+		newIntVal := models.InternalValue{}
+		for k, v := range oldIntVal {
+			newIntVal[k] = v
 		}
 		for k, v := range incomingIntVal {
-			oldIntVal[k] = v
+			newIntVal[k] = v
 		}
-		entity, asModelErr := models.AsModel[Model](oldIntVal)
-		if asModelErr != nil {
-			WriteError(ctx, asModelErr)
-			return
-		}
-		updated, updateErr := modelSettings.Database.Queries().Update(ctx, &oldEntity, &entity, modelSettings.IDFunc(ctx))
+		updatedIntVal, updateErr := modelSettings.QueryDriver.CRUD().Update(
+			ctx, oldIntVal, newIntVal, modelSettings.IDFunc(ctx),
+		)
 		if updateErr != nil {
 			WriteError(ctx, updateErr)
 			return
 		}
-		internalValue, intValErr := models.AsInternalValue(updated)
-		if intValErr != nil {
-			WriteError(ctx, intValErr)
-			return
-		}
-		rawElement, toRawErr := effectiveSerializer.ToRepresentation(internalValue, ctx)
+		rawElement, toRawErr := effectiveSerializer.ToRepresentation(updatedIntVal, ctx)
 		if toRawErr != nil {
-			ctx.JSON(500, gin.H{
-				"message": toRawErr.Error(),
-			})
+			WriteError(ctx, toRawErr)
 			return
 		}
-		ctx.JSON(200, rawElement)
+		ctx.JSON(http.StatusOK, rawElement)
 	}
 }

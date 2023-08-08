@@ -1,23 +1,24 @@
 package views
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
+// ListModelFunc is a gin handler function that lists model instances
 func ListModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		effectiveSerializer := modelSettings.ListSerializer
 		if effectiveSerializer == nil {
 			effectiveSerializer = modelSettings.DefaultSerializer
 		}
-		modelSettings.Database.Filter().Apply(ctx)
-		modelSettings.Database.Order().Apply(ctx)
-		modelSettings.Database.Pagination().Apply(ctx)
-		internalValues, listErr := modelSettings.Database.Queries().List(ctx)
+		modelSettings.QueryDriver.Filter().Apply(ctx)
+		modelSettings.QueryDriver.Order().Apply(ctx)
+		modelSettings.QueryDriver.Pagination().Apply(ctx)
+		internalValues, listErr := modelSettings.QueryDriver.CRUD().List(ctx)
 		if listErr != nil {
-			ctx.JSON(500, gin.H{
-				"message": listErr.Error(),
-			})
+			WriteError(ctx, listErr)
 			return
 		}
 		representationItems := []any{}
@@ -25,22 +26,17 @@ func ListModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.Handle
 			rawElement, toRawErr := effectiveSerializer.ToRepresentation(
 				internalValue, ctx,
 			)
-
 			if toRawErr != nil {
-				ctx.JSON(500, gin.H{
-					"message": toRawErr.Error(),
-				})
+				WriteError(ctx, toRawErr)
 				return
 			}
 			representationItems = append(representationItems, rawElement)
 		}
-		retVal, formatErr := modelSettings.Database.Pagination().Format(ctx, representationItems)
+		retVal, formatErr := modelSettings.QueryDriver.Pagination().Format(ctx, representationItems)
 		if formatErr != nil {
-			ctx.JSON(500, gin.H{
-				"message": formatErr.Error(),
-			})
+			WriteError(ctx, formatErr)
 			return
 		}
-		ctx.JSON(200, retVal)
+		ctx.JSON(http.StatusOK, retVal)
 	}
 }

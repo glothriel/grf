@@ -1,4 +1,4 @@
-package gormdb
+package gorm
 
 import (
 	"github.com/gin-gonic/gin"
@@ -24,7 +24,8 @@ func CtxSetGorm(ctx *gin.Context, gormDB *gorm.DB) {
 }
 
 func CtxInitQuery[Model any](ctx *gin.Context) {
-	ctx.Set("db:gorm:query", ORM[Model](ctx))
+	var m Model
+	ctx.Set("db:gorm:query", ORM[Model](ctx).Model(&m))
 }
 
 func CtxSetQuery[Model any](ctx *gin.Context, db *gorm.DB) {
