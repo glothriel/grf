@@ -1,19 +1,18 @@
 package views
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
 func DeleteModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		var entity Model
-		deleteErr := modelSettings.Database.Queries().Delete(ctx, entity, modelSettings.IDFunc(ctx))
+		deleteErr := modelSettings.QueryDriver.CRUD().Delete(ctx, modelSettings.IDFunc(ctx))
 		if deleteErr != nil {
-			ctx.JSON(500, gin.H{
-				"message": deleteErr.Error(),
-			})
+			WriteError(ctx, deleteErr)
 			return
 		}
-		ctx.JSON(204, nil)
+		ctx.JSON(http.StatusNoContent, nil)
 	}
 }

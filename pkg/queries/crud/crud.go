@@ -1,4 +1,4 @@
-package db
+package crud
 
 import (
 	"github.com/gin-gonic/gin"
@@ -12,18 +12,18 @@ type ListQueryFunc[Model any] func(ctx *gin.Context) ([]models.InternalValue, er
 type RetrieveQueryFunc[Model any] func(ctx *gin.Context, id any) (models.InternalValue, error)
 
 // CreateQueryFunc is a function that executes a create query.
-type CreateQueryFunc[Model any] func(ctx *gin.Context, m *Model) (Model, error)
+type CreateQueryFunc[Model any] func(ctx *gin.Context, new models.InternalValue) (models.InternalValue, error)
 
 // UpdateQueryFunc is a function that executes an update query.
-type UpdateQueryFunc[Model any] func(ctx *gin.Context, old *Model, new *Model, id any) (
-	Model, error,
+type UpdateQueryFunc[Model any] func(ctx *gin.Context, old models.InternalValue, new models.InternalValue, id any) (
+	models.InternalValue, error,
 )
 
 // DeleteQueryFunc is a function that executes a delete query.
-type DeleteQueryFunc[Model any] func(ctx *gin.Context, m Model, id any) error
+type DeleteQueryFunc[Model any] func(ctx *gin.Context, id any) error
 
-// Queries is a collection of queries that are executed by the views
-type Queries[Model any] struct {
+// CRUD is a collection of queries that are executed by the views
+type CRUD[Model any] struct {
 	List     ListQueryFunc[Model]
 	Retrieve RetrieveQueryFunc[Model]
 	Create   CreateQueryFunc[Model]
@@ -31,27 +31,27 @@ type Queries[Model any] struct {
 	Delete   DeleteQueryFunc[Model]
 }
 
-func (q *Queries[Model]) WithList(f ListQueryFunc[Model]) *Queries[Model] {
+func (q *CRUD[Model]) WithList(f ListQueryFunc[Model]) *CRUD[Model] {
 	q.List = f
 	return q
 }
 
-func (q *Queries[Model]) WithRetrieve(f RetrieveQueryFunc[Model]) *Queries[Model] {
+func (q *CRUD[Model]) WithRetrieve(f RetrieveQueryFunc[Model]) *CRUD[Model] {
 	q.Retrieve = f
 	return q
 }
 
-func (q *Queries[Model]) WithCreate(f CreateQueryFunc[Model]) *Queries[Model] {
+func (q *CRUD[Model]) WithCreate(f CreateQueryFunc[Model]) *CRUD[Model] {
 	q.Create = f
 	return q
 }
 
-func (q *Queries[Model]) WithUpdate(f UpdateQueryFunc[Model]) *Queries[Model] {
+func (q *CRUD[Model]) WithUpdate(f UpdateQueryFunc[Model]) *CRUD[Model] {
 	q.Update = f
 	return q
 }
 
-func (q *Queries[Model]) WithDelete(f DeleteQueryFunc[Model]) *Queries[Model] {
+func (q *CRUD[Model]) WithDelete(f DeleteQueryFunc[Model]) *CRUD[Model] {
 	q.Delete = f
 	return q
 }

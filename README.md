@@ -60,7 +60,7 @@ Other gunicorn flag variants had even lower performance.
     * pointer fields, for example `*string`
     * sql.Null.* fields, for example `sql.NullString`
     * JSON fields, both as text (sqlite) and as dedicated columns (eg. Postgres)
-
+* Add support for partial update (PATCH)
 * Add support for model relations
 * Add support for viewsets
 * Add support for authentication

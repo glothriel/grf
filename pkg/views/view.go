@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/authentication"
-	"github.com/glothriel/grf/pkg/db"
+	"github.com/glothriel/grf/pkg/queries"
 )
 
 type View struct {
@@ -83,7 +83,7 @@ func (v *View) authenticated(h gin.HandlerFunc) gin.HandlerFunc {
 	}
 }
 
-func NewView[Model any](path string, database db.Database[Model]) *View {
+func NewView[Model any](path string, queryDriver queries.Driver[Model]) *View {
 	defaultHandler := func(ctx *gin.Context) {
 		ctx.JSON(http.StatusMethodNotAllowed, gin.H{
 			"message": "Not allowed",
@@ -99,6 +99,6 @@ func NewView[Model any](path string, database db.Database[Model]) *View {
 		patchHandler:  defaultHandler,
 		authenticator: &authentication.AnonymousUserAuthentication{},
 
-		middleware: database.Middleware(),
+		middleware: queryDriver.Middleware(),
 	}
 }

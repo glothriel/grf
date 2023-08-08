@@ -1,17 +1,17 @@
 package views
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
 func RetrieveModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		modelSettings.Database.Filter().Apply(ctx)
-		internalValue, retrieveErr := modelSettings.Database.Queries().Retrieve(ctx, modelSettings.IDFunc(ctx))
+		modelSettings.QueryDriver.Filter().Apply(ctx)
+		internalValue, retrieveErr := modelSettings.QueryDriver.CRUD().Retrieve(ctx, modelSettings.IDFunc(ctx))
 		if retrieveErr != nil {
-			ctx.JSON(404, gin.H{
-				"message": retrieveErr.Error(),
-			})
+			WriteError(ctx, retrieveErr)
 			return
 		}
 		effectiveSerializer := modelSettings.RetrieveSerializer
@@ -24,6 +24,6 @@ func RetrieveModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.Ha
 			WriteError(ctx, toRawErr)
 			return
 		}
-		ctx.JSON(200, formattedElement)
+		ctx.JSON(http.StatusOK, formattedElement)
 	}
 }

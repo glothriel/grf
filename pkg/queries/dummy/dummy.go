@@ -1,0 +1,149 @@
+package dummy
+
+import (
+	"fmt"
+
+	"github.com/gin-gonic/gin"
+	"github.com/glothriel/grf/pkg/models"
+	"github.com/glothriel/grf/pkg/queries/common"
+	"github.com/glothriel/grf/pkg/queries/crud"
+	"github.com/google/uuid"
+	"github.com/sirupsen/logrus"
+)
+
+// InMemoryQueryDriver is a dummy query driver that stores all data in memory.
+type InMemoryQueryDriver[Model any] struct {
+	list     func() ([]models.InternalValue, error)
+	retrieve func(id any) (models.InternalValue, error)
+	create   func(m models.InternalValue) (models.InternalValue, error)
+	update   func(id any, new models.InternalValue) (models.InternalValue, error)
+	delete   func(id any) error
+
+	q *crud.CRUD[Model]
+}
+
+// Pagination implements db.QueryDriver interface
+func (d InMemoryQueryDriver[Model]) Pagination() common.Pagination {
+	return dummyPagination[Model]{}
+}
+
+// Filter implements db.QueryDriver interface
+func (d InMemoryQueryDriver[Model]) Filter() common.QueryMod {
+	return dummyQueryMod{}
+}
+
+// Order implements db.QueryDriver interface
+func (d InMemoryQueryDriver[Model]) Order() common.QueryMod {
+	return dummyQueryMod{}
+}
+
+// CRUD implements db.QueryDriver interface
+func (d InMemoryQueryDriver[Model]) CRUD() *crud.CRUD[Model] {
+	return d.q.WithCreate(func(ctx *gin.Context, m models.InternalValue) (models.InternalValue, error) {
+		return d.create(m)
+	}).WithUpdate(func(
+		ctx *gin.Context, old models.InternalValue, new models.InternalValue, id any,
+	) (models.InternalValue, error) {
+		return d.update(id, new)
+	}).WithDelete(func(ctx *gin.Context, id any) error {
+		return d.delete(id)
+	}).WithRetrieve(func(ctx *gin.Context, id any) (models.InternalValue, error) {
+		return d.retrieve(id)
+	}).WithList(func(ctx *gin.Context) ([]models.InternalValue, error) {
+		return d.list()
+	})
+}
+
+// Middleware implements db.QueryDriver interface
+func (d InMemoryQueryDriver[Model]) Middleware() []gin.HandlerFunc {
+	return []gin.HandlerFunc{}
+}
+
+type dummyPagination[Model any] struct {
+}
+
+func (d dummyPagination[Model]) Apply(*gin.Context) {
+}
+
+func (d dummyPagination[Model]) Format(_ *gin.Context, models []any) (any, error) {
+	return models, nil
+}
+
+type dummyQueryMod struct {
+}
+
+func (d dummyQueryMod) Apply(*gin.Context) {
+}
+
+// InMemoryDriver creates InMemoryQueryDriver with given seed data.
+func InMemoryDriver[Model any](seed ...Model) *InMemoryQueryDriver[Model] {
+	storage := map[any]models.InternalValue{}
+	var newID = newIDGenerator[Model](storage)
+	driver := &InMemoryQueryDriver[Model]{
+		q: &crud.CRUD[Model]{},
+		list: func() ([]models.InternalValue, error) {
+			ivs := make([]models.InternalValue, len(storage))
+			i := 0
+			for _, v := range storage {
+				ivs[i] = v
+				i++
+			}
+			return ivs, nil
+		},
+		retrieve: func(id any) (models.InternalValue, error) {
+			fmt.Println(storage)
+			elem, ok := storage[id]
+			if !ok {
+				return nil, common.ErrorNotFound
+			}
+			return elem, nil
+		},
+		create: func(m models.InternalValue) (models.InternalValue, error) {
+			m["id"] = newID()
+			storage[m["id"]] = m
+			return m, nil
+		},
+		update: func(id any, m models.InternalValue) (models.InternalValue, error) {
+			if _, ok := storage[id]; !ok {
+				return nil, common.ErrorNotFound
+			}
+			storage[id] = m
+			return m, nil
+		},
+		delete: func(id any) error {
+			if _, ok := storage[id]; !ok {
+				return common.ErrorNotFound
+			}
+			delete(storage, id)
+			return nil
+		},
+	}
+	for _, m := range seed {
+		intVal := models.AsInternalValue(m)
+		_, createErr := driver.create(intVal)
+		if createErr != nil {
+			panic(createErr)
+		}
+	}
+
+	return driver
+}
+
+func newIDGenerator[Model any](storage map[any]models.InternalValue) func() any {
+	var currModel Model
+	intVal := models.AsInternalValue(currModel)
+	if _, ok := intVal["id"]; !ok {
+		logrus.Panic("Model needs to have a field that is serialized to 'id'")
+	}
+	if _, ok := intVal["id"].(uint); ok {
+		return func() any {
+			return len(storage) + 1
+		}
+	} else if _, ok := intVal["id"].(string); ok {
+		return func() any {
+			return uuid.New().String()
+		}
+	}
+	logrus.Panic("id must be uint or string")
+	return nil
+}

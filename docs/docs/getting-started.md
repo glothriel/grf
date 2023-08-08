@@ -4,11 +4,11 @@ sidebar_position: 1
 
 # Getting started
 
-GRF is a library, that automatically generates REST APIs for GORM models using Gin. The simplest cases require merely few lines of code to generate a full REST resource with GET(list), GET(retrieve), POST(create), PUT(update), PATCH(update), DELETE(remove) methods and type validation. You can safely use GRF in your existing Gin application, it does not enforce any specific file layout or pattern.
+GRF is a library, that automatically generates REST handlers for Gin. The simplest cases require merely few lines of code to generate a full REST resource with GET(list), GET(retrieve), POST(create), PUT(update), PATCH(update), DELETE(remove) methods and type validation. You can safely use GRF in your existing Gin application, it does not enforce any specific file layout or pattern. For full experience you should use GORM as your ORM, but you can include your own QueryDriver implementation if you use something else.
 
 ## Full example
 
-Here's a minimal example - it generates views supporting POST(create) and GET(list) methods, on `/people` path. The create action validates if name is present, otherwise throws validation error. On top of that any superflous fields are also reported as errors.
+Here's a minimal example - it generates views supporting POST(create) and GET(list) methods, on `/people` path. It stores all the data in memory, so it's not very useful, but it's enough to show how the framework works:
 
 ```go
 package main
@@ -17,29 +17,19 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glothriel/grf/pkg/db"
+	"github.com/glothriel/grf/pkg/queries"
 	"github.com/glothriel/grf/pkg/serializers"
 	"github.com/glothriel/grf/pkg/views"
-
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
 )
 
 type Person struct {
-	ID   uint   `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name string `json:"name" gorm:"size:191;column:name"`
+	ID   uint   `json:"id"`
+	Name string `json:"name"`
 }
 
 func main() {
 	ginEngine := gin.Default()
-	gormDB, openErr := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if openErr != nil {
-		log.Fatalf("Failed to connect database: %s", openErr)
-	}
-	if migrateErr := gormDB.AutoMigrate(&Person{}); migrateErr != nil {
-		log.Fatalf("Error migrating database: %s", migrateErr)
-	}
-	views.NewListCreateModelView[Person]("/people", db.NewStaticResolver(gormDB)).WithSerializer(
+	views.NewListCreateModelView[Person]("/people", queries.InMemory()).WithSerializer(
 		serializers.NewValidatingSerializer[Person](
 			serializers.NewModelSerializer[Person](),
 			serializers.NewGoPlaygroundValidator[Person](
@@ -51,6 +41,7 @@ func main() {
 	).Register(ginEngine)
 	log.Fatal(ginEngine.Run(":8080"))
 }
+
 ```
 
 Let's run such program and check how it works. First it should display an empty list:
@@ -103,12 +94,12 @@ Now let's decompose all the parts of the listing to better understand what's goi
 
 ```go
 type Person struct {
-	ID   uint   `json:"id" gorm:"primaryKey;autoIncrement"`
-	Name string `json:"name" gorm:"size:191;column:name"`
+	ID   uint   `json:"id"`
+	Name string `json:"name"`
 }
 ```
 
-In order to generate the views, we need a model. GRF uses standard GORM models, but has some additional requirements regarding the fields used in the struct, you can read more of that in models section. Assuming, that your model uses standard golang types, everything should be fine. 
+In order to generate the views, we need a model. GRF requres you to have an `id` field in the representation, other requirements can differ between QueryDrivers. This example uses InMemory one, but if you'd use GORM, you should include relevant tags here, like `gorm:"primaryKey"`.
 
 ## Serializers
 
@@ -123,17 +114,15 @@ serializers.NewValidatingSerializer[Person](
 )
 ```
 
-Serializers are used to translate the objects from the external API representation (what is incoming from JSON API) to internal representation (how it's represented in golang types) and backwards. Default `ModelSerializer` automatically includes all the fields from underlying model. `ValidatingSerializer` is a decorator placed on other Serializer implementation, that adds a validation layer. Currently we support [go-playground/validator](https://github.com/go-playground/validator) as the most popular validating library, but the validator interface is straightforward and you can creaate your own with 5 lines of code.
-
-
+Serializers are used to translate the objects from the external API representation (what is incoming from JSON API) to internal representation (how it's represented in golang types) and backwards. Default `ModelSerializer` automatically includes all the fields from underlying model. `ValidatingSerializer` is a decorator placed on other Serializer implementation, that adds a validation layer. Currently we support [go-playground/validator](https://github.com/go-playground/validator) as the most popular validating library, but the validator interface is straightforward and you can create your own with 5 lines of code.
 
 ## Views
 
 ```go
 
-views.NewListCreateModelView[Person]("/people", db.NewStaticResolver(gormDB)).WithSerializer(
+views.NewListCreateModelView[Person]("/people", queries.InMemory()).WithSerializer(
 	// serializer here
 ).Register(ginEngine)
 ```
 
-Views package generates Gin views, exactly as its name suggests. During view creation you need to pass a database resolver - it can be used if you implement some kind of tenant separation, or just ignored and use gorm object directly, like here.
+Views package generates Gin views, exactly as its name suggests. During view creation you need to pass a QueryDriver, which is a storage layer of GRF. You can read more about query drivers in the [dedicated section](/docs/query-drivers).
