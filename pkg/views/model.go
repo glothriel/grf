@@ -3,6 +3,7 @@ package views
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/authentication"
+	"github.com/glothriel/grf/pkg/queries/crud"
 
 	"github.com/glothriel/grf/pkg/queries"
 	"github.com/glothriel/grf/pkg/serializers"
@@ -15,9 +16,9 @@ type ModelViewSettings[Model any] struct {
 	RetrieveSerializer serializers.Serializer
 	UpdateSerializer   serializers.Serializer
 	CreateSerializer   serializers.Serializer
-	DeleteSerializer   serializers.Serializer
+	DestroySerializer  serializers.Serializer
 
-	IDFunc      func(*gin.Context) any
+	IDFunc      func(*gin.Context) string
 	QueryDriver queries.Driver[Model]
 }
 
@@ -39,7 +40,7 @@ type ModelView[Model any] struct {
 	CreateFunc   HandlerFactoryFunc[Model]
 	RetrieveFunc HandlerFactoryFunc[Model]
 	UpdateFunc   HandlerFactoryFunc[Model]
-	DeleteFunc   HandlerFactoryFunc[Model]
+	DestroyFunc  HandlerFactoryFunc[Model]
 }
 
 func (v *ModelView[Model]) Register(r *gin.Engine) {
@@ -56,8 +57,8 @@ func (v *ModelView[Model]) Register(r *gin.Engine) {
 		v.View.Put(v.UpdateFunc(v.Settings))
 		v.View.Patch(v.UpdateFunc(v.Settings))
 	}
-	if v.DeleteFunc != nil {
-		v.View.Delete(v.DeleteFunc(v.Settings))
+	if v.DestroyFunc != nil {
+		v.View.Delete(v.DestroyFunc(v.Settings))
 	}
 	v.View.Register(r)
 }
@@ -87,8 +88,8 @@ func (v *ModelView[Model]) WithCreateSerializer(serializer serializers.Serialize
 	return v
 }
 
-func (v *ModelView[Model]) WithDeleteSerializer(serializer serializers.Serializer) *ModelView[Model] {
-	v.Settings.DeleteSerializer = serializer
+func (v *ModelView[Model]) WithDestroySerializer(serializer serializers.Serializer) *ModelView[Model] {
+	v.Settings.DestroySerializer = serializer
 	return v
 }
 
@@ -101,6 +102,21 @@ func (v *ModelView[Model]) WithFieldTypeMapper(fieldTypeMapper *types.FieldTypeM
 	return v
 }
 
+func (v *ModelView[Model]) OnCreate(modFunc func(c crud.CreateQueryFunc) crud.CreateQueryFunc) *ModelView[Model] {
+	v.Settings.QueryDriver.CRUD().WithCreate(modFunc(v.Settings.QueryDriver.CRUD().Create))
+	return v
+}
+
+func (v *ModelView[Model]) OnUpdate(modFunc func(u crud.UpdateQueryFunc) crud.UpdateQueryFunc) *ModelView[Model] {
+	v.Settings.QueryDriver.CRUD().WithUpdate(modFunc(v.Settings.QueryDriver.CRUD().Update))
+	return v
+}
+
+func (v *ModelView[Model]) OnDestroy(modFunc func(d crud.DestroyQueryFunc) crud.DestroyQueryFunc) *ModelView[Model] {
+	v.Settings.QueryDriver.CRUD().WithDestroy(modFunc(v.Settings.QueryDriver.CRUD().Destroy))
+	return v
+}
+
 func NewListCreateModelView[Model any](path string, queryDriver queries.Driver[Model]) *ModelView[Model] {
 	return &ModelView[Model]{
 		View:       NewView(path, queryDriver),
@@ -110,16 +126,16 @@ func NewListCreateModelView[Model any](path string, queryDriver queries.Driver[M
 	}
 }
 
-func NewRetrieveUpdateDeleteModelView[Model any](path string, queryDriver queries.Driver[Model]) *ModelView[Model] {
+func NewRetrieveUpdateDestroyModelView[Model any](path string, queryDriver queries.Driver[Model]) *ModelView[Model] {
 	return &ModelView[Model]{
 		View:         NewView(path, queryDriver),
 		Settings:     DefaultModelViewSettings(queryDriver),
 		RetrieveFunc: RetrieveModelFunc[Model],
 		UpdateFunc:   UpdateModelFunc[Model],
-		DeleteFunc:   DeleteModelFunc[Model],
+		DestroyFunc:  DestroyModelFunc[Model],
 	}
 }
 
-func IDFromQueryParamIDFunc[Model any](ctx *gin.Context) any {
+func IDFromQueryParamIDFunc[Model any](ctx *gin.Context) string {
 	return ctx.Param("id")
 }

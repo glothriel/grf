@@ -6,9 +6,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func DeleteModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.HandlerFunc {
+func DestroyModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		deleteErr := modelSettings.QueryDriver.CRUD().Delete(ctx, modelSettings.IDFunc(ctx))
+		deleteErr := modelSettings.QueryDriver.CRUD().Destroy(ctx, modelSettings.IDFunc(ctx))
 		if deleteErr != nil {
 			WriteError(ctx, deleteErr)
 			return

@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Setup integration tests
-        uses: PiwikPRO/actions/go/setup/integration@1.0.0
+        uses: PiwikPRO/actions/go/setup/integration@master
 
       - name: Run integration tests
         env:
