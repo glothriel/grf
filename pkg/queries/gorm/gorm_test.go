@@ -17,12 +17,26 @@ type MockModel struct {
 	Foo string `json:"foo"`
 }
 
-func prepareDb[Model any](t *testing.T) (*gin.Context, *GormQueryDriver[MockModel]) {
-	gormDb, dbErr := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	migrateErr := gormDb.AutoMigrate(&MockModel{})
-	queryDriver := Gorm[MockModel](gormDb)
+func prepareGorm(t *testing.T) *gorm.DB {
+	db, err := gorm.Open(sqlite.Open("file::memory:"))
+	assert.NoError(t, err)
+	sqlDb, sqlDbErr := db.DB()
+	assert.NoError(t, sqlDbErr)
+	sqlDb.SetMaxOpenConns(1)
+	return db
+}
+
+func prepareCtx[Model any](t *testing.T, db ...*gorm.DB) (*gin.Context, *GormQueryDriver[Model]) {
+	var theDB *gorm.DB
+	if len(db) == 0 {
+		theDB = prepareGorm(t)
+	} else {
+		theDB = db[0]
+	}
+	var m Model
+	migrateErr := theDB.AutoMigrate(&m)
+	queryDriver := Gorm[Model](theDB)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-	assert.NoError(t, dbErr)
 	assert.NoError(t, migrateErr)
 	for _, middleware := range queryDriver.Middleware() {
 		middleware(ctx)
@@ -32,11 +46,11 @@ func prepareDb[Model any](t *testing.T) (*gin.Context, *GormQueryDriver[MockMode
 
 func TestGormDBInitializesQueryInMiddleware(t *testing.T) {
 	// given
-	ctx, _ := prepareDb[MockModel](t)
+	ctx, _ := prepareCtx[MockModel](t)
 
 	// when
 	results := []MockModel{}
-	queryErr := CtxQuery[MockModel](ctx).Find(&results).Error
+	queryErr := CtxQuery(ctx).Find(&results).Error
 
 	// then
 	assert.NoError(t, queryErr)
@@ -44,7 +58,7 @@ func TestGormDBInitializesQueryInMiddleware(t *testing.T) {
 
 func TestGormDBCreateQuery(t *testing.T) {
 	// given
-	ctx, queryDriver := prepareDb[MockModel](t)
+	ctx, queryDriver := prepareCtx[MockModel](t)
 
 	// when
 	created, createErr := queryDriver.CRUD().Create(ctx, models.InternalValue{"foo": "bar"})
@@ -56,7 +70,7 @@ func TestGormDBCreateQuery(t *testing.T) {
 
 func TestGormDBCreateQueryNotAValidModel(t *testing.T) {
 	// given
-	ctx, queryDriver := prepareDb[MockModel](t)
+	ctx, queryDriver := prepareCtx[MockModel](t)
 
 	// when
 	_, createErr := queryDriver.CRUD().Create(ctx, models.InternalValue{"foo": time.Duration(1)})
@@ -67,7 +81,7 @@ func TestGormDBCreateQueryNotAValidModel(t *testing.T) {
 
 func TestGormDBListQuery(t *testing.T) {
 	// given
-	ctx, queryDriver := prepareDb[MockModel](t)
+	ctx, queryDriver := prepareCtx[MockModel](t)
 
 	// when
 	_, createErr := queryDriver.CRUD().Create(ctx, models.InternalValue{"foo": "bar"})
@@ -83,7 +97,7 @@ func TestGormDBListQuery(t *testing.T) {
 
 func TestGormDBRetrieveQuery(t *testing.T) {
 	// given
-	ctx, queryDriver := prepareDb[MockModel](t)
+	ctx, queryDriver := prepareCtx[MockModel](t)
 
 	// when
 	intVal, createErr := queryDriver.CRUD().Create(ctx, models.InternalValue{"foo": "bar"})
@@ -98,7 +112,7 @@ func TestGormDBRetrieveQuery(t *testing.T) {
 func TestGormDBUpdateQueryDoesNotExists(t *testing.T) {
 	t.Skip("This has to be fixed, currently fails, consider debugging query executed by gorm")
 	// given
-	ctx, queryDriver := prepareDb[MockModel](t)
+	ctx, queryDriver := prepareCtx[MockModel](t)
 
 	// when
 	_, updateErr := queryDriver.CRUD().Update(ctx, models.InternalValue{}, models.InternalValue{}, uint(1))
@@ -109,7 +123,7 @@ func TestGormDBUpdateQueryDoesNotExists(t *testing.T) {
 
 func TestGormDBUpdateQueryNotAValidModel(t *testing.T) {
 	// given
-	ctx, queryDriver := prepareDb[MockModel](t)
+	ctx, queryDriver := prepareCtx[MockModel](t)
 
 	// when
 	intVal, createErr := queryDriver.CRUD().Create(ctx, models.InternalValue{"foo": "bar"})
@@ -124,7 +138,7 @@ func TestGormDBUpdateQueryNotAValidModel(t *testing.T) {
 
 func TestGormDBUpdateQuery(t *testing.T) {
 	// given
-	ctx, queryDriver := prepareDb[MockModel](t)
+	ctx, queryDriver := prepareCtx[MockModel](t)
 
 	// when
 	intVal, createErr := queryDriver.CRUD().Create(ctx, models.InternalValue{"foo": "bar"})
@@ -138,13 +152,13 @@ func TestGormDBUpdateQuery(t *testing.T) {
 	assert.Equal(t, models.InternalValue{"foo": "baz", "id": intVal["id"]}, item)
 }
 
-func TestGormDBDeleteQuery(t *testing.T) {
+func TestGormDBDestroyQuery(t *testing.T) {
 	// given
-	ctx, queryDriver := prepareDb[MockModel](t)
+	ctx, queryDriver := prepareCtx[MockModel](t)
 
 	// when
 	intVal, createErr := queryDriver.CRUD().Create(ctx, models.InternalValue{"foo": "bar"})
-	deleteErr := queryDriver.CRUD().Delete(ctx, intVal["id"])
+	deleteErr := queryDriver.CRUD().Destroy(ctx, intVal["id"])
 	_, retrieveErr := queryDriver.CRUD().Retrieve(ctx, intVal["id"])
 
 	// then
@@ -153,12 +167,12 @@ func TestGormDBDeleteQuery(t *testing.T) {
 	assert.Error(t, retrieveErr)
 }
 
-func TestGormDBDeleteQueryDoesNotExist(t *testing.T) {
+func TestGormDBDestroyQueryDoesNotExist(t *testing.T) {
 	// given
-	ctx, queryDriver := prepareDb[MockModel](t)
+	ctx, queryDriver := prepareCtx[MockModel](t)
 
 	// when
-	deleteErr := queryDriver.CRUD().Delete(ctx, uint(1))
+	deleteErr := queryDriver.CRUD().Destroy(ctx, uint(1))
 
 	// then
 	assert.Error(t, deleteErr)
@@ -166,7 +180,7 @@ func TestGormDBDeleteQueryDoesNotExist(t *testing.T) {
 
 func TestGormPagination(t *testing.T) {
 	// given
-	ctx, queryDriver := prepareDb[MockModel](t)
+	ctx, queryDriver := prepareCtx[MockModel](t)
 
 	// when
 	queryDriver.WithPagination(&NoPagination{}).Pagination().Apply(ctx)
@@ -179,7 +193,7 @@ func TestGormPagination(t *testing.T) {
 
 func TestGormOrder(t *testing.T) {
 	// given
-	ctx, queryDriver := prepareDb[MockModel](t)
+	ctx, queryDriver := prepareCtx[MockModel](t)
 
 	// when
 	for _, model := range []models.InternalValue{
@@ -206,7 +220,7 @@ func TestGormOrder(t *testing.T) {
 
 func TestGormFilter(t *testing.T) {
 	// given
-	ctx, queryDriver := prepareDb[MockModel](t)
+	ctx, queryDriver := prepareCtx[MockModel](t)
 
 	// when
 	for _, model := range []models.InternalValue{

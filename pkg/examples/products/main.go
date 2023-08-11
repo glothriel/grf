@@ -66,7 +66,7 @@ func main() {
 			WithModelFields([]string{"id", "name"}),
 	).Register(router)
 
-	views.NewRetrieveUpdateDeleteModelView[Product]("/products/:id", queryDriver).WithSerializer(
+	views.NewRetrieveUpdateDestroyModelView[Product]("/products/:id", queryDriver).WithSerializer(
 		serializers.NewValidatingSerializer[Product](
 			serializers.NewModelSerializer[Product](),
 			validator,

@@ -45,7 +45,7 @@ func (d InMemoryQueryDriver[Model]) CRUD() *crud.CRUD[Model] {
 		ctx *gin.Context, old models.InternalValue, new models.InternalValue, id any,
 	) (models.InternalValue, error) {
 		return d.update(id, new)
-	}).WithDelete(func(ctx *gin.Context, id any) error {
+	}).WithDestroy(func(ctx *gin.Context, id any) error {
 		return d.delete(id)
 	}).WithRetrieve(func(ctx *gin.Context, id any) (models.InternalValue, error) {
 		return d.retrieve(id)
@@ -91,8 +91,7 @@ func InMemoryDriver[Model any](seed ...Model) *InMemoryQueryDriver[Model] {
 			return ivs, nil
 		},
 		retrieve: func(id any) (models.InternalValue, error) {
-			fmt.Println(storage)
-			elem, ok := storage[id]
+			elem, ok := storage[fmt.Sprintf("%v", id)]
 			if !ok {
 				return nil, common.ErrorNotFound
 			}
@@ -100,21 +99,21 @@ func InMemoryDriver[Model any](seed ...Model) *InMemoryQueryDriver[Model] {
 		},
 		create: func(m models.InternalValue) (models.InternalValue, error) {
 			m["id"] = newID()
-			storage[m["id"]] = m
+			storage[fmt.Sprintf("%v", m["id"])] = m
 			return m, nil
 		},
 		update: func(id any, m models.InternalValue) (models.InternalValue, error) {
-			if _, ok := storage[id]; !ok {
+			if _, ok := storage[fmt.Sprintf("%v", id)]; !ok {
 				return nil, common.ErrorNotFound
 			}
-			storage[id] = m
+			storage[fmt.Sprintf("%v", id)] = m
 			return m, nil
 		},
 		delete: func(id any) error {
-			if _, ok := storage[id]; !ok {
+			if _, ok := storage[fmt.Sprintf("%v", id)]; !ok {
 				return common.ErrorNotFound
 			}
-			delete(storage, id)
+			delete(storage, fmt.Sprintf("%v", id))
 			return nil
 		},
 	}
@@ -137,7 +136,11 @@ func newIDGenerator[Model any](storage map[any]models.InternalValue) func() any 
 	}
 	if _, ok := intVal["id"].(uint); ok {
 		return func() any {
-			return len(storage) + 1
+			return uint(len(storage) + 1)
+		}
+	} else if _, ok := intVal["id"].(int); ok {
+		return func() any {
+			return int(len(storage) + 1)
 		}
 	} else if _, ok := intVal["id"].(string); ok {
 		return func() any {

@@ -142,7 +142,7 @@ func registerModel[Model any](
 		serializer,
 	).Register(router)
 
-	views.NewRetrieveUpdateDeleteModelView[Model](prefix+"/:id", queries.GORM[Model](gormDB)).WithSerializer(
+	views.NewRetrieveUpdateDestroyModelView[Model](prefix+"/:id", queries.GORM[Model](gormDB)).WithSerializer(
 		serializer,
 	).Register(router)
 

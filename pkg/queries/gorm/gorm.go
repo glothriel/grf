@@ -18,7 +18,7 @@ type gormQueryMod[Model any] struct {
 }
 
 func (g gormQueryMod[Model]) Apply(ctx *gin.Context) {
-	CtxSetQuery[Model](ctx, g.modFunc(ctx, CtxQuery[Model](ctx)))
+	CtxSetQuery(ctx, g.modFunc(ctx, CtxQuery(ctx)))
 }
 
 type gormPagination[Model any] struct {
@@ -26,7 +26,7 @@ type gormPagination[Model any] struct {
 }
 
 func (g gormPagination[Model]) Apply(ctx *gin.Context) {
-	CtxSetQuery[Model](ctx, g.child.Apply(ctx, CtxQuery[Model](ctx)))
+	CtxSetQuery(ctx, g.child.Apply(ctx, CtxQuery(ctx)))
 }
 
 func (g gormPagination[Model]) Format(ctx *gin.Context, elems []any) (any, error) {
@@ -98,7 +98,7 @@ func Gorm[Model any](db *gorm.DB) *GormQueryDriver[Model] {
 		middleware: []gin.HandlerFunc{
 			func(ctx *gin.Context) {
 				CtxSetGorm(ctx, db)
-				CtxInitQuery[Model](ctx)
+				CtxInitQuery(ctx)
 				ctx.Next()
 			},
 		},
@@ -108,11 +108,11 @@ func Gorm[Model any](db *gorm.DB) *GormQueryDriver[Model] {
 // GormQueries returns default queries providing basic CRUD functionality
 func GormQueries[Model any]() *crud.CRUD[Model] {
 	convertFromDBToInternalValue := FromDBConverter[Model]()
-
+	var empty Model
 	return &crud.CRUD[Model]{
 		List: func(ctx *gin.Context) ([]models.InternalValue, error) {
 			rawEntities := []map[string]any{}
-			findErr := CtxQuery[Model](ctx).Find(&rawEntities).Error
+			findErr := CtxQuery(ctx).Model(&empty).Find(&rawEntities).Error
 			if findErr != nil {
 				return nil, findErr
 			}
@@ -128,7 +128,7 @@ func GormQueries[Model any]() *crud.CRUD[Model] {
 		},
 		Retrieve: func(ctx *gin.Context, id any) (models.InternalValue, error) {
 			var rawEntity map[string]any
-			retrieveErr := CtxQuery[Model](ctx).First(&rawEntity, "id = ?", id).Error
+			retrieveErr := CtxQuery(ctx).Model(&empty).First(&rawEntity, "id = ?", id).Error
 			if retrieveErr != nil {
 				if retrieveErr == gorm.ErrRecordNotFound {
 					return nil, common.ErrorNotFound
@@ -142,7 +142,7 @@ func GormQueries[Model any]() *crud.CRUD[Model] {
 			if asModelErr != nil {
 				return nil, asModelErr
 			}
-			createErr := CtxQuery[Model](ctx).Create(&entity).Error
+			createErr := CtxQuery(ctx).Model(&empty).Create(&entity).Error
 			return models.AsInternalValue(entity), createErr
 		},
 		Update: func(ctx *gin.Context, old models.InternalValue, new models.InternalValue, id any) (
@@ -152,16 +152,16 @@ func GormQueries[Model any]() *crud.CRUD[Model] {
 			if asModelErr != nil {
 				return nil, asModelErr
 			}
-			updateErr := CtxQuery[Model](ctx).Model(&entity).Updates(&entity).Error
+			updateErr := CtxQuery(ctx).Model(&entity).Updates(&entity).Error
 			if updateErr != nil {
 				return nil, updateErr
 			}
 			return models.AsInternalValue(entity), nil
 		},
-		Delete: func(ctx *gin.Context, id any) error {
+		Destroy: func(ctx *gin.Context, id any) error {
 			var m Model
 			errWrapMsg := "could not delete entity"
-			queryResult := CtxQuery[Model](ctx).Delete(&m, "id = ?", id)
+			queryResult := CtxQuery(ctx).Model(&empty).Delete(&m, "id = ?", id)
 			if queryResult.Error != nil {
 				return fmt.Errorf(
 					"%s: query error: %w", errWrapMsg, queryResult.Error,

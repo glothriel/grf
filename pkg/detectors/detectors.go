@@ -16,7 +16,7 @@ type ToRepresentationDetector[Model any] interface {
 }
 
 func DefaultToRepresentationDetector[Model any]() ToRepresentationDetector[Model] {
-	return NewChainingToRepresentationDetector(
+	return NewChainingToRepresentationDetector[Model](
 		NewUsingGRFRepresentableToRepresentationProvider[Model](),
 		NewFromTypeMapperToRepresentationProvider[Model](types.Mapper()),
 		NewEncodingTextMarshalerToRepresentationProvider[Model](),
