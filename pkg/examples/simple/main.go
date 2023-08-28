@@ -4,9 +4,13 @@ import (
 	"log"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glothriel/grf/pkg/models"
 	"github.com/glothriel/grf/pkg/queries"
+	"github.com/glothriel/grf/pkg/queries/gormq"
 	"github.com/glothriel/grf/pkg/serializers"
 	"github.com/glothriel/grf/pkg/views"
+
+	"gorm.io/gorm"
 )
 
 type Person struct {
@@ -27,6 +31,12 @@ func main() {
 					"name": "required",
 				},
 			),
+		),
+	).OnCreate(
+		gormq.CreateTx(
+			gormq.AfterCreate(func(ctx *gin.Context, iv models.InternalValue, db *gorm.DB) (models.InternalValue, error) {
+				return iv, nil
+			}),
 		),
 	).Register(ginEngine)
 	log.Fatal(ginEngine.Run(":8080"))

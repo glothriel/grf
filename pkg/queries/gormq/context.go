@@ -1,6 +1,8 @@
-package gorm
+package gormq
 
 import (
+	"fmt"
+
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
@@ -36,5 +38,12 @@ func CtxQuery(ctx *gin.Context) *gorm.DB {
 }
 
 func ORM(ctx *gin.Context) *gorm.DB {
-	return CtxGetGorm(ctx).Session(&gorm.Session{NewDB: true}).Debug()
+	session := CtxGetGorm(ctx).Session(&gorm.Session{NewDB: true})
+	session.Callback().Query().Before("gorm:query").Register("grf:before_query", func(d *gorm.DB) {
+		fmt.Println(d.Statement.SQL.String())
+	})
+	session.Callback().Query().After("gorm:query").Register("grf:after_query", func(d *gorm.DB) {
+		fmt.Println(d.Statement.SQL.String())
+	})
+	return session
 }

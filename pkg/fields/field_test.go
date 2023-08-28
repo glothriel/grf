@@ -1,9 +1,6 @@
 package fields
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -158,23 +155,6 @@ func TestFieldWithInternalValueFunc(t *testing.T) {
 	assert.Equal(t, 1, funcCalls)
 }
 
-func TestFieldWithFromDBFunc(t *testing.T) {
-	// given
-	field := Field[struct{}]{}
-	funcCalls := 0
-	f := func(map[string]any, string, *gin.Context) (any, error) {
-		funcCalls++
-		return nil, nil
-	}
-
-	// when
-	field.WithFromDBFunc(f)
-	field.FromDB(nil, nil)
-
-	// then
-	assert.Equal(t, 1, funcCalls)
-}
-
 type mockModel struct {
 	Field string `json:"field"`
 }
@@ -192,59 +172,4 @@ func TestFieldDefaultFuncs(t *testing.T) {
 	assert.Nil(t, intValErr)
 	assert.Equal(t, "foo", reprVal)
 	assert.Nil(t, reprValErr)
-}
-
-type mockSQLScannerField map[string]any
-
-// Scan scan value into Jsonb, implements sql.Scanner interface
-func (s *mockSQLScannerField) Scan(value any) error {
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New(fmt.Sprint("Failed to unmarshal JSON value:", value))
-	}
-
-	result := make(map[string]any)
-	err := json.Unmarshal(bytes, &result)
-	*s = result
-	return err
-}
-
-type mockSQLScannerModel struct {
-	Field mockSQLScannerField `json:"field"`
-}
-
-func TestSQLScannerOrPassthroughWhenIsSqlScanner(t *testing.T) {
-	// given
-	fromDBFunc := SQLScannerOrPassthrough[mockSQLScannerModel]()
-
-	// when
-	value, valueErr := fromDBFunc(map[string]any{"field": []byte(`{"foo": "bar"}`)}, "field", nil)
-
-	// then
-	assert.Equal(t, mockSQLScannerField{"foo": "bar"}, value)
-	assert.Nil(t, valueErr)
-}
-
-func TestSQLScannerOrPassthroughWhenIsSqlScannerScanError(t *testing.T) {
-	// given
-	fromDBFunc := SQLScannerOrPassthrough[mockSQLScannerModel]()
-
-	// when
-	value, valueErr := fromDBFunc(map[string]any{"field": []byte(`{"foo": "bar`)}, "field", nil)
-
-	// then
-	assert.Nil(t, value)
-	assert.Error(t, valueErr)
-}
-
-func TestSQLScannerOrPassthroughWhenIsNotSqlScanner(t *testing.T) {
-	// given
-	fromDBFunc := SQLScannerOrPassthrough[mockModel]()
-
-	// when
-	value, valueErr := fromDBFunc(map[string]any{"field": "foo"}, "field", nil)
-
-	// then
-	assert.Equal(t, "foo", value)
-	assert.Nil(t, valueErr)
 }

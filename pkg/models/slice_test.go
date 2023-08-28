@@ -1,4 +1,4 @@
-package fields
+package models
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 )
 
 func FromRepresentationSuccessTestCase[T any](t *testing.T, value []any, expected []T) {
-	var s SliceModelField[T]
+	var s SliceField[T]
 	err := s.FromRepresentation(value)
 	assert.NoError(t, err)
 	for i, item := range expected {
@@ -17,7 +17,7 @@ func FromRepresentationSuccessTestCase[T any](t *testing.T, value []any, expecte
 }
 
 func FromRepresentationErrorTestCase[T any](t *testing.T, value any) {
-	var s SliceModelField[T]
+	var s SliceField[T]
 	err := s.FromRepresentation(value)
 	assert.Error(t, err)
 }
@@ -40,7 +40,7 @@ func TestSliceModelFieldFromRepresentationError(t *testing.T) {
 
 func TestSliceModelFieldToRepresentation(t *testing.T) {
 	// given
-	var s SliceModelField[int]
+	var s SliceField[int]
 	s = []int{1, 2, 3}
 
 	// when
@@ -48,12 +48,12 @@ func TestSliceModelFieldToRepresentation(t *testing.T) {
 
 	// then
 	assert.NoError(t, err)
-	assert.Equal(t, SliceModelField[int]{1, 2, 3}, value)
+	assert.Equal(t, SliceField[int]{1, 2, 3}, value)
 }
 
 func TestSliceModelFieldScan(t *testing.T) {
 	// given
-	var s SliceModelField[int]
+	var s SliceField[int]
 
 	// when
 	err := s.Scan([]byte(`[1,2,3]`))
@@ -64,7 +64,7 @@ func TestSliceModelFieldScan(t *testing.T) {
 
 func TestSliceModelFieldScanErrorJSON(t *testing.T) {
 	// given
-	var s SliceModelField[int]
+	var s SliceField[int]
 
 	// when
 	err := s.Scan([]byte(`[1,2,3`))
@@ -75,7 +75,7 @@ func TestSliceModelFieldScanErrorJSON(t *testing.T) {
 
 func TestSliceModelFieldScanErrorNotBytes(t *testing.T) {
 	// given
-	var s SliceModelField[int]
+	var s SliceField[int]
 
 	// when
 	err := s.Scan(1.337)
@@ -86,7 +86,7 @@ func TestSliceModelFieldScanErrorNotBytes(t *testing.T) {
 
 func TestSliceModelFieldValue(t *testing.T) {
 	// given
-	s := SliceModelField[int]{1, 2, 3}
+	s := SliceField[int]{1, 2, 3}
 
 	// when
 	value, err := s.Value()
@@ -98,7 +98,7 @@ func TestSliceModelFieldValue(t *testing.T) {
 
 func TestSliceModelFieldValueEmpty(t *testing.T) {
 	// given
-	s := SliceModelField[int]{}
+	s := SliceField[int]{}
 
 	// when
 	value, err := s.Value()

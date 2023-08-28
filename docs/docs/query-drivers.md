@@ -20,7 +20,7 @@ Here's an example of using GORM query driver (taken from `pkg/exammples/products
 ```go
 import(
     ...
-	gormQueries "github.com/glothriel/grf/pkg/queries/gorm"
+	"github.com/glothriel/grf/pkg/queries/gormq"
     ...
 )
 
@@ -50,7 +50,7 @@ queries.GORM[Product](gormDB).WithFilter(
         }
         return db
     },
-).WithOrderBy("name ASC").WithPagination(&gormQueries.LimitOffsetPagination{})
+).WithOrderBy("name ASC").WithPagination(&gormq.LimitOffsetPagination{})
 ...
 ```
 

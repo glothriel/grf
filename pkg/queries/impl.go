@@ -2,7 +2,7 @@ package queries
 
 import (
 	"github.com/glothriel/grf/pkg/queries/dummy"
-	gormdb "github.com/glothriel/grf/pkg/queries/gorm"
+	gormdb "github.com/glothriel/grf/pkg/queries/gormq"
 	"gorm.io/gorm"
 )
 

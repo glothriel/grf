@@ -1,4 +1,4 @@
-package fields
+package models
 
 import (
 	"database/sql/driver"
@@ -7,10 +7,10 @@ import (
 	"fmt"
 )
 
-// SliceModelField is a field that represents a slice of any type
-type SliceModelField[T any] []T
+// SliceField is a field that represents a slice of any type
+type SliceField[T any] []T
 
-func (s *SliceModelField[T]) FromRepresentation(rawValue any) error {
+func (s *SliceField[T]) FromRepresentation(rawValue any) error {
 	rawValueSlice, ok := rawValue.([]any)
 	if !ok {
 		return errors.New("Is not a collection")
@@ -29,24 +29,24 @@ func (s *SliceModelField[T]) FromRepresentation(rawValue any) error {
 	return nil
 }
 
-func (s SliceModelField[T]) ToRepresentation() (any, error) {
+func (s SliceField[T]) ToRepresentation() (any, error) {
 	return s, nil
 }
 
 // Scan scan value into Jsonb, implements sql.Scanner interface
-func (s *SliceModelField[T]) Scan(value any) error {
+func (s *SliceField[T]) Scan(value any) error {
 	bytes, ok := value.([]byte)
 	if !ok {
 		return errors.New(fmt.Sprint("Failed to parse the value from database: is not bytes:", value))
 	}
 
-	result := SliceModelField[T]{}
+	result := SliceField[T]{}
 	err := json.Unmarshal(bytes, &result)
 	*s = result
 	return err
 }
 
 // Value return json value, implement driver.Valuer interface
-func (s SliceModelField[T]) Value() (driver.Value, error) {
+func (s SliceField[T]) Value() (driver.Value, error) {
 	return json.Marshal(s)
 }
