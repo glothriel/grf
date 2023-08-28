@@ -5,11 +5,11 @@ import styles from './styles.module.css';
 const FeatureList = [
 
   {
-    title: 'Rapid delivery',
+    title: 'Rapid prototyping',
     icon: "⏱️",
     description: (
       <>
-        Full REST API wrapper for a SQL table in 5 minutes? No problem. Need customization? We got you covered.
+        Complete REST API resource over SQL table in several minutes. Need to plug-in custom business logic? No problem.
       </>
     ),
   },
@@ -18,8 +18,7 @@ const FeatureList = [
     icon: "👔",
     description: (
       <>
-        Hate code generation? So do we. Gin REST Framework uses generics to
-        provide a concise and ellegant API.
+        Hate code generation? So do we. GRF uses generics to hide the boring stuff and let you focus on what brings value to your project.
       </>
     ),
   },
@@ -28,7 +27,7 @@ const FeatureList = [
     icon: "🧩",
     description: (
       <>
-        GRF doesn't enforce any file structure or project layout, you can freely use it with your existing Gin project. Did I mention it's using GORM?
+        GRF doesn't enforce any file structure or project layout, you can freely use it with your existing Gin project. Uses pluggable storage layer, with GORM as the default option.
       </>
     ),
   },

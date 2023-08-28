@@ -1,6 +1,7 @@
 # Gin rest framework
 
 [![codecov](https://codecov.io/gh/glothriel/grf/branch/master/graph/badge.svg?token=RG7Q17TT73)](https://codecov.io/gh/glothriel/grf)
+[![slack](https://img.shields.io/badge/slack-gophers/grf-brightgreen.svg?logo=slack)](https://gophers.slack.com/archives/C05FVQWMT62)
 
 A REST framework for golang, highly inspired by Django REST framework. Main goal of this project is to achieve ease of implementing REST services similar to DRF with similar APIs but with better performance.
 

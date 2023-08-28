@@ -10,8 +10,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// InternalRepresentation is a type that is used to hold model data. We don't use structs,
-// because it would force heavy use of reflection, which is slow.
 
 // BaseModel contains common columns for all tables.
 type BaseModel struct {

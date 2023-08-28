@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glothriel/grf/pkg/fields"
 	"github.com/glothriel/grf/pkg/models"
 	"github.com/glothriel/grf/pkg/queries"
 	"github.com/glothriel/grf/pkg/serializers"
@@ -63,37 +62,37 @@ type DurationModel struct {
 
 type StringSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[string] `json:"value" gorm:"column:value;type:text"`
+	Value models.SliceField[string] `json:"value" gorm:"column:value;type:text"`
 }
 
 type IntSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[int] `json:"value" gorm:"column:value;type:text"`
+	Value models.SliceField[int] `json:"value" gorm:"column:value;type:text"`
 }
 
 type FloatSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[float64] `json:"value" gorm:"column:value;type:text"`
+	Value models.SliceField[float64] `json:"value" gorm:"column:value;type:text"`
 }
 
 type MapSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[map[string]any] `json:"value" gorm:"column:value;type:text"`
+	Value models.SliceField[map[string]any] `json:"value" gorm:"column:value;type:text"`
 }
 
 type BoolSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[bool] `json:"value" gorm:"column:value;type:text"`
+	Value models.SliceField[bool] `json:"value" gorm:"column:value;type:text"`
 }
 
 type AnySliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[any] `json:"value" gorm:"column:value;type:text"`
+	Value models.SliceField[any] `json:"value" gorm:"column:value;type:text"`
 }
 
 type TwoDStringSliceModel struct {
 	models.BaseModel
-	Value fields.SliceModelField[fields.SliceModelField[string]] `json:"value" gorm:"column:value;type:text"`
+	Value models.SliceField[models.SliceField[string]] `json:"value" gorm:"column:value;type:text"`
 }
 
 func main() {

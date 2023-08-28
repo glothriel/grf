@@ -1,10 +1,9 @@
-package gorm
+package gormq
 
 import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	"github.com/glothriel/grf/pkg/fields"
 	"github.com/glothriel/grf/pkg/models"
 	"github.com/glothriel/grf/pkg/queries/common"
 	"github.com/glothriel/grf/pkg/queries/crud"
@@ -176,8 +175,9 @@ func GormQueries[Model any]() *crud.CRUD[Model] {
 }
 
 // FromDBConverter internally uses *sql.Scanner to convert a map[string]any to an InternalValue
+// as GORM does this only for structs
 func FromDBConverter[Model any]() func(map[string]any) (models.InternalValue, error) {
-	fromDB := fields.SQLScannerOrPassthrough[Model]()
+	fromDB := SQLScannerOrPassthrough[Model]()
 	return func(m map[string]any) (models.InternalValue, error) {
 		intVal := models.InternalValue{}
 		for k := range m {
