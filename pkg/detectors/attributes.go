@@ -26,7 +26,7 @@ func Fields[Model any]() []string {
 	var m Model
 	fields := reflect.VisibleFields(reflect.TypeOf(m))
 	for _, field := range fields {
-		if !field.Anonymous {
+		if !field.Anonymous && field.Tag.Get("json") != "" {
 			fieldNames = append(fieldNames, field.Tag.Get("json"))
 		}
 	}
