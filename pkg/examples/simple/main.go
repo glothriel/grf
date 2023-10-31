@@ -16,18 +16,15 @@ type Person struct {
 
 func main() {
 	ginEngine := gin.Default()
-	queryDriver := queries.InMemory(
-		Person{ID: 1, Name: "John"},
-	)
-	views.NewListCreateModelView[Person]("/people", queryDriver).WithSerializer(
-		serializers.NewValidatingSerializer[Person](
-			serializers.NewModelSerializer[Person](),
-			serializers.NewGoPlaygroundValidator[Person](
-				map[string]any{
-					"name": "required",
-				},
-			),
+	queryDriver := queries.InMemory[Person]()
+	serializer := serializers.NewValidatingSerializer[Person](
+		serializers.NewModelSerializer[Person](),
+		serializers.NewGoPlaygroundValidator[Person](
+			map[string]any{
+				"name": "required",
+			},
 		),
-	).Register(ginEngine)
+	)
+	views.NewModelViewSet[Person]("/people", queryDriver).WithSerializer(serializer).Register(ginEngine)
 	log.Fatal(ginEngine.Run(":8080"))
 }

@@ -8,11 +8,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/models"
+	"github.com/glothriel/grf/pkg/queries"
 	"github.com/glothriel/grf/pkg/serializers"
 	"github.com/sirupsen/logrus"
 )
 
-func UpdateModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.HandlerFunc {
+func UpdateModelViewSetFunc[Model any](idf IDFunc, qd queries.Driver[Model], serializer serializers.Serializer) gin.HandlerFunc {
 	// numericID := hasNumeridID[Model]()
 	return func(ctx *gin.Context) {
 		var parsedBody map[string]any
@@ -21,22 +22,19 @@ func UpdateModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.Hand
 			return
 		}
 
-		updates, idEnrichErr := enrichBodyWithID(ctx, hasNumeridID[Model](), modelSettings, parsedBody)
+		updates, idEnrichErr := enrichBodyWithID[Model](ctx, hasNumeridID[Model](), idf, parsedBody)
 		if idEnrichErr != nil {
 			WriteError(ctx, idEnrichErr)
 			return
 		}
 
-		effectiveSerializer := modelSettings.UpdateSerializer
-		if effectiveSerializer == nil {
-			effectiveSerializer = modelSettings.DefaultSerializer
-		}
+		effectiveSerializer := serializer
 		incomingIntVal, fromRawErr := effectiveSerializer.ToInternalValue(updates, ctx)
 		if fromRawErr != nil {
 			WriteError(ctx, fromRawErr)
 			return
 		}
-		oldIntVal, oldErr := modelSettings.QueryDriver.CRUD().Retrieve(ctx, modelSettings.IDFunc(ctx))
+		oldIntVal, oldErr := qd.CRUD().Retrieve(ctx, idf(ctx))
 		if oldErr != nil {
 			WriteError(ctx, oldErr)
 			return
@@ -48,8 +46,8 @@ func UpdateModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.Hand
 		for k, v := range incomingIntVal {
 			newIntVal[k] = v
 		}
-		updatedIntVal, updateErr := modelSettings.QueryDriver.CRUD().Update(
-			ctx, oldIntVal, newIntVal, modelSettings.IDFunc(ctx),
+		updatedIntVal, updateErr := qd.CRUD().Update(
+			ctx, oldIntVal, newIntVal, idf(ctx),
 		)
 		if updateErr != nil {
 			WriteError(ctx, updateErr)
@@ -64,8 +62,8 @@ func UpdateModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.Hand
 	}
 }
 
-func enrichBodyWithID[Model any](ctx *gin.Context, isNumeric bool, settings ModelViewSettings[Model], b map[string]any) (map[string]any, error) {
-	idFromURLStr := settings.IDFunc(ctx)
+func enrichBodyWithID[Model any](ctx *gin.Context, isNumeric bool, idf IDFunc, b map[string]any) (map[string]any, error) {
+	idFromURLStr := idf(ctx)
 	if !isNumeric {
 		if idFromBody, ok := b["id"]; ok {
 			if idFromBody != idFromURLStr {
