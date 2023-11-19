@@ -1,6 +1,7 @@
 package views
 
 import (
+	"fmt"
 	"net/http"
 	"reflect"
 	"slices"
@@ -53,11 +54,15 @@ func UpdateModelViewSetFunc[Model any](idf IDFunc, qd queries.Driver[Model], ser
 			WriteError(ctx, updateErr)
 			return
 		}
+		fmt.Println("OKEOKE")
 		rawElement, toRawErr := effectiveSerializer.ToRepresentation(updatedIntVal, ctx)
 		if toRawErr != nil {
 			WriteError(ctx, toRawErr)
 			return
 		}
+
+		fmt.Println("DOKEOKE")
+		fmt.Println(http.StatusOK)
 		ctx.JSON(http.StatusOK, rawElement)
 	}
 }
