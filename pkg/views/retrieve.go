@@ -4,20 +4,19 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glothriel/grf/pkg/queries"
+	"github.com/glothriel/grf/pkg/serializers"
 )
 
-func RetrieveModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.HandlerFunc {
+func RetrieveModelViewSetFunc[Model any](idf IDFunc, qd queries.Driver[Model], serializer serializers.Serializer) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		modelSettings.QueryDriver.Filter().Apply(ctx)
-		internalValue, retrieveErr := modelSettings.QueryDriver.CRUD().Retrieve(ctx, modelSettings.IDFunc(ctx))
+		qd.Filter().Apply(ctx)
+		internalValue, retrieveErr := qd.CRUD().Retrieve(ctx, idf(ctx))
 		if retrieveErr != nil {
 			WriteError(ctx, retrieveErr)
 			return
 		}
-		effectiveSerializer := modelSettings.RetrieveSerializer
-		if effectiveSerializer == nil {
-			effectiveSerializer = modelSettings.DefaultSerializer
-		}
+		effectiveSerializer := serializer
 
 		formattedElement, toRawErr := effectiveSerializer.ToRepresentation(internalValue, ctx)
 		if toRawErr != nil {

@@ -4,19 +4,18 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glothriel/grf/pkg/queries"
+	"github.com/glothriel/grf/pkg/serializers"
 )
 
 // ListModelFunc is a gin handler function that lists model instances
-func ListModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.HandlerFunc {
+func ListModelViewSetFunc[Model any](idf IDFunc, qd queries.Driver[Model], serializer serializers.Serializer) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		effectiveSerializer := modelSettings.ListSerializer
-		if effectiveSerializer == nil {
-			effectiveSerializer = modelSettings.DefaultSerializer
-		}
-		modelSettings.QueryDriver.Filter().Apply(ctx)
-		modelSettings.QueryDriver.Order().Apply(ctx)
-		modelSettings.QueryDriver.Pagination().Apply(ctx)
-		internalValues, listErr := modelSettings.QueryDriver.CRUD().List(ctx)
+		effectiveSerializer := serializer
+		qd.Filter().Apply(ctx)
+		qd.Order().Apply(ctx)
+		qd.Pagination().Apply(ctx)
+		internalValues, listErr := qd.CRUD().List(ctx)
 		if listErr != nil {
 			WriteError(ctx, listErr)
 			return
@@ -32,7 +31,7 @@ func ListModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.Handle
 			}
 			representationItems = append(representationItems, rawElement)
 		}
-		retVal, formatErr := modelSettings.QueryDriver.Pagination().Format(ctx, representationItems)
+		retVal, formatErr := qd.Pagination().Format(ctx, representationItems)
 		if formatErr != nil {
 			WriteError(ctx, formatErr)
 			return

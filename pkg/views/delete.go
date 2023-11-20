@@ -4,11 +4,13 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glothriel/grf/pkg/queries"
+	"github.com/glothriel/grf/pkg/serializers"
 )
 
-func DestroyModelFunc[Model any](modelSettings ModelViewSettings[Model]) gin.HandlerFunc {
+func DestroyModelViewSetFunc[Model any](idf IDFunc, qd queries.Driver[Model], serializer serializers.Serializer) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		deleteErr := modelSettings.QueryDriver.CRUD().Destroy(ctx, modelSettings.IDFunc(ctx))
+		deleteErr := qd.CRUD().Destroy(ctx, idf(ctx))
 		if deleteErr != nil {
 			WriteError(ctx, deleteErr)
 			return

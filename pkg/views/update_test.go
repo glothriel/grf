@@ -53,15 +53,13 @@ func TestUpdateModelView(t *testing.T) {
 	for _, tt := range updateModelViewTests {
 		t.Run(tt.name, func(t *testing.T) {
 			// given
-			settings := ModelViewSettings[MockModel]{
-				DefaultSerializer: serializers.NewModelSerializer[MockModel](),
-				QueryDriver:       queries.InMemory(MockModel{Foo: "bar"}),
-				IDFunc:            func(c *gin.Context) string { return c.Param("id") },
-			}
+			qd := queries.InMemory(MockModel{Foo: "bar"})
+			serializer := serializers.NewModelSerializer[MockModel]()
+
 			_, r := gin.CreateTestContext(httptest.NewRecorder())
 
-			r.POST("/foos/", CreateModelFunc(settings))
-			r.PUT("/foos/:id", UpdateModelFunc(settings))
+			r.POST("/foos/", CreateModelViewSetFunc(IDFromQueryParamIDFunc, qd, serializer))
+			r.PUT("/foos/:id", UpdateModelViewSetFunc(IDFromQueryParamIDFunc, qd, serializer))
 			createRequest, createRequestErr := http.NewRequest(http.MethodPost, "/foos/", bytes.NewBufferString(`{"foo": "bar"}`))
 			updateRequest, updateRequestErr := http.NewRequest(http.MethodPut, "/foos/2", bytes.NewBufferString(tt.json))
 			updateRecorder := httptest.NewRecorder()

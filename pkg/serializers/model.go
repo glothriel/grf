@@ -55,9 +55,13 @@ func (s *ModelSerializer[Model]) ToRepresentation(intVal models.InternalValue, c
 		value, err := field.ToRepresentation(intVal, ctx)
 
 		if err != nil {
-			return nil, fmt.Errorf(
-				"Failed to serialize field `%s` to representation: %w", field.Name(), err,
-			)
+			return nil, &ValidationError{
+				FieldErrors: map[string][]string{
+					field.Name(): {
+						err.Error(),
+					},
+				},
+			}
 		}
 		raw[field.Name()] = value
 	}

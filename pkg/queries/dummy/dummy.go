@@ -13,9 +13,9 @@ import (
 
 // InMemoryQueryDriver is a dummy query driver that stores all data in memory.
 type InMemoryQueryDriver[Model any] struct {
-	list     func() ([]models.InternalValue, error)
+	list     crud.ListQueryFunc
+	create   crud.CreateQueryFunc
 	retrieve func(id any) (models.InternalValue, error)
-	create   func(m models.InternalValue) (models.InternalValue, error)
 	update   func(id any, new models.InternalValue) (models.InternalValue, error)
 	delete   func(id any) error
 
@@ -40,7 +40,7 @@ func (d InMemoryQueryDriver[Model]) Order() common.QueryMod {
 // CRUD implements db.QueryDriver interface
 func (d InMemoryQueryDriver[Model]) CRUD() *crud.CRUD[Model] {
 	return d.q.WithCreate(func(ctx *gin.Context, m models.InternalValue) (models.InternalValue, error) {
-		return d.create(m)
+		return d.create(ctx, m)
 	}).WithUpdate(func(
 		ctx *gin.Context, old models.InternalValue, new models.InternalValue, id any,
 	) (models.InternalValue, error) {
@@ -50,8 +50,13 @@ func (d InMemoryQueryDriver[Model]) CRUD() *crud.CRUD[Model] {
 	}).WithRetrieve(func(ctx *gin.Context, id any) (models.InternalValue, error) {
 		return d.retrieve(id)
 	}).WithList(func(ctx *gin.Context) ([]models.InternalValue, error) {
-		return d.list()
+		return d.list(ctx)
 	})
+}
+
+func (d *InMemoryQueryDriver[Model]) WithCreate(f crud.CreateQueryFunc) *InMemoryQueryDriver[Model] {
+	d.create = f
+	return d
 }
 
 // Middleware implements db.QueryDriver interface
@@ -81,7 +86,7 @@ func InMemoryDriver[Model any](seed ...Model) *InMemoryQueryDriver[Model] {
 	var newID = newIDGenerator[Model](storage)
 	driver := &InMemoryQueryDriver[Model]{
 		q: &crud.CRUD[Model]{},
-		list: func() ([]models.InternalValue, error) {
+		list: func(*gin.Context) ([]models.InternalValue, error) {
 			ivs := make([]models.InternalValue, len(storage))
 			i := 0
 			for _, v := range storage {
@@ -97,7 +102,7 @@ func InMemoryDriver[Model any](seed ...Model) *InMemoryQueryDriver[Model] {
 			}
 			return elem, nil
 		},
-		create: func(m models.InternalValue) (models.InternalValue, error) {
+		create: func(_ *gin.Context, m models.InternalValue) (models.InternalValue, error) {
 			m["id"] = newID()
 			storage[fmt.Sprintf("%v", m["id"])] = m
 			return m, nil
@@ -119,7 +124,7 @@ func InMemoryDriver[Model any](seed ...Model) *InMemoryQueryDriver[Model] {
 	}
 	for _, m := range seed {
 		intVal := models.AsInternalValue(m)
-		_, createErr := driver.create(intVal)
+		_, createErr := driver.create(nil, intVal)
 		if createErr != nil {
 			panic(createErr)
 		}

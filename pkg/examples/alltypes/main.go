@@ -9,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/models"
 	"github.com/glothriel/grf/pkg/queries"
-	"github.com/glothriel/grf/pkg/serializers"
 	"github.com/glothriel/grf/pkg/views"
 	"github.com/sirupsen/logrus"
 	"gorm.io/driver/sqlite"
@@ -135,15 +134,8 @@ func registerModel[Model any](
 	prefix string,
 	orderBy string,
 ) {
-	serializer := serializers.NewModelSerializer[Model]()
 
-	views.NewListCreateModelView[Model](prefix, queries.GORM[Model](gormDB).WithOrderBy(fmt.Sprintf("%s ASC", orderBy))).WithSerializer(
-		serializer,
-	).Register(router)
-
-	views.NewRetrieveUpdateDestroyModelView[Model](prefix+"/:id", queries.GORM[Model](gormDB)).WithSerializer(
-		serializer,
-	).Register(router)
+	views.NewModelViewSet[Model](prefix, queries.GORM[Model](gormDB).WithOrderBy(fmt.Sprintf("%s ASC", orderBy))).Register(router)
 
 	var entity Model
 	if migrateErr := gormDB.AutoMigrate(&entity); migrateErr != nil {

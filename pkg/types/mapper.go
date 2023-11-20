@@ -22,7 +22,6 @@ func Mapper() *FieldTypeMapper {
 type FieldType struct {
 	InternalToResponse ConvertFunc
 	RequestToInternal  ConvertFunc
-	DBToInternal       ConvertFunc
 }
 
 type FieldTypeMapper struct {
