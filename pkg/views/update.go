@@ -1,7 +1,6 @@
 package views
 
 import (
-	"fmt"
 	"net/http"
 	"reflect"
 	"slices"
@@ -15,7 +14,6 @@ import (
 )
 
 func UpdateModelViewSetFunc[Model any](idf IDFunc, qd queries.Driver[Model], serializer serializers.Serializer) gin.HandlerFunc {
-	// numericID := hasNumeridID[Model]()
 	return func(ctx *gin.Context) {
 		var parsedBody map[string]any
 		if parseErr := ctx.ShouldBindJSON(&parsedBody); parseErr != nil {
@@ -54,15 +52,11 @@ func UpdateModelViewSetFunc[Model any](idf IDFunc, qd queries.Driver[Model], ser
 			WriteError(ctx, updateErr)
 			return
 		}
-		fmt.Println("OKEOKE")
 		rawElement, toRawErr := effectiveSerializer.ToRepresentation(updatedIntVal, ctx)
 		if toRawErr != nil {
 			WriteError(ctx, toRawErr)
 			return
 		}
-
-		fmt.Println("DOKEOKE")
-		fmt.Println(http.StatusOK)
 		ctx.JSON(http.StatusOK, rawElement)
 	}
 }

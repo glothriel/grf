@@ -9,139 +9,198 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/queries"
+	"github.com/glothriel/grf/pkg/serializers"
 	"github.com/stretchr/testify/assert"
 )
 
-type AnotherMockModel struct {
+type anotherMockModel struct {
 	ID    uint    `json:"id"`
 	Price float64 `json:"price"`
 	Name  string  `json:"name"`
 }
 
-type requestParams struct {
+var nameOnlySerializer = serializers.NewModelSerializer[anotherMockModel]().WithModelFields([]string{"name"})
+
+type quickReqParams struct {
 	method string
 	path   string
-	body   io.Reader
+	body   func() io.Reader
 }
 
-func quickReq(r *gin.Engine, params requestParams) *httptest.ResponseRecorder {
+func noBody() io.Reader {
+	return nil
+}
+
+func strBody(s string) func() io.Reader {
+	return func() io.Reader {
+		return bytes.NewBufferString(s)
+	}
+}
+
+func quickReq(r *gin.Engine, params quickReqParams) *httptest.ResponseRecorder {
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(params.method, params.path, params.body)
+	req, _ := http.NewRequest(params.method, params.path, params.body())
 	r.ServeHTTP(w, req)
 	return w
 
 }
 
-var testCases = []struct {
+type viewsetTestCase struct {
 	name   string
-	params requestParams
-}{
-	{
-		name: "GET request to collection endpoint",
-		params: requestParams{
-			method: "GET",
-			path:   "/mocks",
-		},
+	params quickReqParams
+}
+
+var caseList viewsetTestCase = viewsetTestCase{
+	name: "GET request to collection endpoint",
+	params: quickReqParams{
+		method: "GET",
+		path:   "/mocks",
+		body:   noBody,
 	},
-	{
-		name: "GET request to single item endpoint",
-		params: requestParams{
-			method: "GET",
-			path:   "/mocks/1",
-		},
+}
+
+var caseRetrieve viewsetTestCase = viewsetTestCase{
+	name: "GET request to single item endpoint",
+	params: quickReqParams{
+		method: "GET",
+		path:   "/mocks/1",
+		body:   noBody,
 	},
-	{
-		name: "DELETE request to single item endpoint",
-		params: requestParams{
-			method: "DELETE",
-			path:   "/mocks/1",
-		},
+}
+
+var caseCreate viewsetTestCase = viewsetTestCase{
+	name: "POST request to collection endpoint",
+	params: quickReqParams{
+		method: "POST",
+		path:   "/mocks",
+		body:   strBody(`{"price": 1.0,"name": "Canned Beans"}`),
 	},
-	{
-		name: "POST request to collection endpoint",
-		params: requestParams{
-			method: "POST",
-			path:   "/mocks",
-			body:   bytes.NewBufferString(`{"price": 1.0}`),
-		},
+}
+
+var caseUpdate viewsetTestCase = viewsetTestCase{
+	name: "PUT request to single item endpoint",
+	params: quickReqParams{
+		method: "PUT",
+		path:   "/mocks/1",
+		body:   strBody(`{"price": 2.0,"name": "Canned Beans"}`),
 	},
-	{
-		name: "PUT request to single item endpoint",
-		params: requestParams{
-			method: "PUT",
-			path:   "/mocks/1",
-			body:   bytes.NewBufferString(`{"price": 1.0, "name": "bar"}`),
-		},
+}
+
+var caseDestroy viewsetTestCase = viewsetTestCase{
+	name: "DELETE request to single item endpoint",
+	params: quickReqParams{
+		method: "DELETE",
+		path:   "/mocks/1",
+		body:   noBody,
 	},
 }
 
 func TestEmptyViewsetRespondsWithMethodNotFound(t *testing.T) {
-	viewset := NewViewSet[AnotherMockModel]("/mocks", queries.InMemory[AnotherMockModel]())
+	viewset := NewViewSet[anotherMockModel]("/mocks", queries.InMemory[anotherMockModel]())
 	_, r := gin.CreateTestContext(httptest.NewRecorder())
 	viewset.Register(r)
 
-	for _, tc := range testCases {
+	for _, tc := range []viewsetTestCase{
+		caseCreate,
+		caseRetrieve,
+		caseList,
+		caseUpdate,
+		caseDestroy,
+	} {
 		t.Run(tc.name, func(t *testing.T) {
 			w := quickReq(r, tc.params)
 			assert.Equal(t, 405, w.Code)
 		})
 	}
 }
-func TestViewsetOnlyListActionRegistered(t *testing.T) {
-	viewset := NewViewSet[AnotherMockModel]("/mocks", queries.InMemory[AnotherMockModel]()).WithActions(ActionList)
+func TestViewsetWhenOnlyListActionRegisteredAllOthersReturn405(t *testing.T) {
+	viewset := NewViewSet[anotherMockModel]("/mocks", queries.InMemory[anotherMockModel]()).WithActions(ActionList)
 	_, r := gin.CreateTestContext(httptest.NewRecorder())
 	viewset.Register(r)
 
-	// Tests for actions that should return 405
-	nonListTests := []struct {
-		name   string
-		params requestParams
-	}{
-		{
-			name: "GET single item should return 405",
-			params: requestParams{
-				method: "GET",
-				path:   "/mocks/1",
-			},
-		},
-		{
-			name: "DELETE item should return 405",
-			params: requestParams{
-				method: "DELETE",
-				path:   "/mocks/1",
-			},
-		},
-		{
-			name: "POST to collection should return 405",
-			params: requestParams{
-				method: "POST",
-				path:   "/mocks",
-				body:   bytes.NewBufferString("{}"),
-			},
-		},
-		{
-			name: "PUT single item should return 405",
-			params: requestParams{
-				method: "PUT",
-				path:   "/mocks/1",
-				body:   bytes.NewBufferString(`{"price": 1.0}`),
-			},
-		},
-	}
-
-	for _, tc := range nonListTests {
-		t.Run(tc.name, func(t *testing.T) {
-			w := quickReq(r, tc.params)
+	for _, tt := range []viewsetTestCase{
+		caseCreate,
+		caseRetrieve,
+		caseUpdate,
+		caseDestroy,
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			w := quickReq(r, tt.params)
 			assert.Equal(t, 405, w.Code)
 		})
 	}
 
-	// Test for LIST action which should return 200
-	t.Run("GET collection should return 200", func(t *testing.T) {
-		w := quickReq(r, requestParams{
-			method: "GET",
-			path:   "/mocks",
+	for _, tt := range []viewsetTestCase{
+		caseList,
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			w := quickReq(r, tt.params)
+			assert.Equal(t, 200, w.Code)
 		})
-		assert.Equal(t, 200, w.Code)
-	})
+	}
+}
+
+func checkAllActionsNoErrors(t *testing.T, v *ViewSet[anotherMockModel]) {
+	_, r := gin.CreateTestContext(httptest.NewRecorder())
+	v.Register(r)
+	for _, tt := range []viewsetTestCase{
+		caseList,
+		caseCreate,
+		caseRetrieve,
+		caseUpdate,
+		caseDestroy,
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			w := quickReq(r, tt.params)
+			assert.Less(t, w.Code, 299)
+		})
+	}
+}
+
+func TestNewModelViewset(t *testing.T) {
+	checkAllActionsNoErrors(
+		t, NewModelViewSet[anotherMockModel]("/mocks", queries.InMemory[anotherMockModel]()),
+	)
+}
+func TestNewViewSetAllActions(t *testing.T) {
+	checkAllActionsNoErrors(
+		t, NewViewSet[anotherMockModel]("/mocks", queries.InMemory[anotherMockModel]()).WithActions(
+			ActionList, ActionCreate, ActionRetrieve, ActionUpdate, ActionDestroy,
+		),
+	)
+}
+
+func TestCustomSerializer(t *testing.T) {
+	// given
+	viewset := NewModelViewSet[anotherMockModel]("/mocks", queries.InMemory[anotherMockModel](
+		anotherMockModel{Price: 1.0, Name: "Canned Beans"},
+	)).WithSerializer(nameOnlySerializer)
+	_, r := gin.CreateTestContext(httptest.NewRecorder())
+	viewset.Register(r)
+
+	// when
+	w := quickReq(r, caseList.params)
+
+	// then
+	assert.Equal(t, 200, w.Code)
+	assert.Equal(t, `[{"name":"Canned Beans"}]`, w.Body.String())
+}
+
+func TestCustomRetrieveSerializer(t *testing.T) {
+	// given
+	viewset := NewModelViewSet[anotherMockModel]("/mocks", queries.InMemory[anotherMockModel](
+		anotherMockModel{Price: 1.0, Name: "Canned Beans"},
+	)).WithRetrieveSerializer(nameOnlySerializer)
+	_, r := gin.CreateTestContext(httptest.NewRecorder())
+	viewset.Register(r)
+
+	// when
+	ls := quickReq(r, caseList.params)
+	rt := quickReq(r, caseRetrieve.params)
+
+	// then
+	assert.Equal(t, 200, ls.Code)
+	assert.Equal(t, 200, rt.Code)
+	assert.Equal(t, `[{"id":1,"name":"Canned Beans","price":1}]`, ls.Body.String())
+	assert.Equal(t, `{"name":"Canned Beans"}`, rt.Body.String())
 }
