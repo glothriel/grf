@@ -78,7 +78,7 @@ func (g *GormQueryDriver[Model]) WithOrderBy(orderClause any) *GormQueryDriver[M
 	return g
 }
 
-func Gorm[Model any](db *gorm.DB) *GormQueryDriver[Model] {
+func Gorm[Model any](factory GormORMFactory) *GormQueryDriver[Model] {
 	return &GormQueryDriver[Model]{
 		crud: GormQueries[Model](),
 		filter: &gormQueryMod[Model]{
@@ -96,7 +96,7 @@ func Gorm[Model any](db *gorm.DB) *GormQueryDriver[Model] {
 		},
 		middleware: []gin.HandlerFunc{
 			func(ctx *gin.Context) {
-				CtxSetGorm(ctx, db)
+				CtxSetFactory(ctx, factory)
 				CtxInitQuery(ctx)
 				ctx.Next()
 			},

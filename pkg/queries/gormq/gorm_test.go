@@ -35,7 +35,7 @@ func prepareCtx[Model any](t *testing.T, db ...*gorm.DB) (*gin.Context, *GormQue
 	}
 	var m Model
 	migrateErr := theDB.AutoMigrate(&m)
-	queryDriver := Gorm[Model](theDB)
+	queryDriver := Gorm[Model](Static(theDB))
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	assert.NoError(t, migrateErr)
 	for _, middleware := range queryDriver.Middleware() {

@@ -6,21 +6,21 @@ import (
 	"gorm.io/gorm"
 )
 
-func CtxGetGorm(ctx *gin.Context) *gorm.DB {
-	anyVal, ok := ctx.Get("db:gorm")
-	if !ok {
-		logrus.Panic("gorm not found in the context. Was it initialized earlier?")
-	}
-
-	theVal, ok := anyVal.(*gorm.DB)
-	if !ok {
-		logrus.Panic("gorm has wrong type in the context. Was it initialized earlier?")
-	}
-	return theVal
+func CtxSetFactory(ctx *gin.Context, factory GormORMFactory) {
+	ctx.Set("db:gorm:factory", factory)
 }
 
-func CtxSetGorm(ctx *gin.Context, gormDB *gorm.DB) {
-	ctx.Set("db:gorm", gormDB)
+func CtxGetFactory(ctx *gin.Context) GormORMFactory {
+	anyVal, ok := ctx.Get("db:gorm:factory")
+	if !ok {
+		logrus.Panic("gorm factory not found in the context. Was it initialized earlier?")
+	}
+
+	theVal, ok := anyVal.(GormORMFactory)
+	if !ok {
+		logrus.Panic("gorm factory has wrong type in the context. Was it initialized earlier?")
+	}
+	return theVal
 }
 
 func CtxInitQuery(ctx *gin.Context) {
@@ -36,6 +36,5 @@ func CtxQuery(ctx *gin.Context) *gorm.DB {
 }
 
 func ORM(ctx *gin.Context) *gorm.DB {
-	session := CtxGetGorm(ctx).Session(&gorm.Session{NewDB: true})
-	return session
+	return CtxGetFactory(ctx).InitQuery(CtxGetFactory(ctx).Create(ctx))
 }
