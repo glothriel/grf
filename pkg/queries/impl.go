@@ -15,6 +15,11 @@ func GORM[Model any](db *gorm.DB) *gormdb.GormQueryDriver[Model] {
 	return gormdb.Gorm[Model](gormdb.Static(db))
 }
 
-func DynamicGORM[Model any](dbFunc func(*gin.Context) *gorm.DB, copyFields ...string) *gormdb.GormQueryDriver[Model] {
-	return gormdb.Gorm[Model](gormdb.Dynamic(dbFunc, copyFields...))
+func DynamicGORM[Model any](dbFunc func(*gin.Context) *gorm.DB, fields ...string) *gormdb.GormQueryDriver[Model] {
+	return gormdb.Gorm[Model](
+		gormdb.ContextFieldsCopying(
+			gormdb.Dynamic(dbFunc),
+			fields...,
+		),
+	)
 }
