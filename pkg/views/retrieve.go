@@ -16,9 +16,7 @@ func RetrieveModelViewSetFunc[Model any](idf IDFunc, qd queries.Driver[Model], s
 			WriteError(ctx, retrieveErr)
 			return
 		}
-		effectiveSerializer := serializer
-
-		formattedElement, toRawErr := effectiveSerializer.ToRepresentation(internalValue, ctx)
+		formattedElement, toRawErr := serializer.ToRepresentation(internalValue, ctx)
 		if toRawErr != nil {
 			WriteError(ctx, toRawErr)
 			return

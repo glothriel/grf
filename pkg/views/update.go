@@ -21,7 +21,7 @@ func UpdateModelViewSetFunc[Model any](idf IDFunc, qd queries.Driver[Model], ser
 			return
 		}
 
-		updates, idEnrichErr := enrichBodyWithID[Model](ctx, hasNumeridID[Model](), idf, parsedBody)
+		updates, idEnrichErr := enrichBodyWithID[Model](ctx, hasNumericID[Model](), idf, parsedBody)
 		if idEnrichErr != nil {
 			WriteError(ctx, idEnrichErr)
 			return
@@ -80,7 +80,7 @@ func enrichBodyWithID[Model any](ctx *gin.Context, isNumeric bool, idf IDFunc, b
 
 	idFromUrlFloat, convertErr := strconv.ParseFloat(idFromURLStr, 64)
 	if convertErr != nil {
-		return b, convertErr
+		return nil, convertErr
 	}
 	if idFromBody, ok := b["id"]; ok {
 		if idFromBody != idFromUrlFloat {
@@ -96,7 +96,7 @@ func enrichBodyWithID[Model any](ctx *gin.Context, isNumeric bool, idf IDFunc, b
 	return b, nil
 }
 
-func hasNumeridID[Model any]() bool {
+func hasNumericID[Model any]() bool {
 	var m Model
 	intVal := models.AsInternalValue(m)
 	_, ok := intVal["id"]

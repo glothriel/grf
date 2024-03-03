@@ -16,11 +16,18 @@ export function setup() {
   cleanAllProducts();
   var items = JSON.parse(http.get('http://localhost:8080/products').body);
   if (items.length < 3) {
+    var cat = http.post("http://localhost:8080/categories", JSON.stringify(
+      {
+        "name": "Category",
+        "description": "This is wonderful category."
+      }, { headers: { 'Content-Type': 'application/json' }})
+    )
     for(var i = items.length; i < 3; i++) {
       var res = http.post('http://localhost:8080/products', JSON.stringify({
         name: `Product ${i}`,
         description: `Description ${i}`,
-        price: "10.00"
+        price: "10.00",
+        category_id: cat.json().id
       }), { headers: { 'Content-Type': 'application/json' }});
       check(res, {
         'product is created': (r) => r.status === 201,

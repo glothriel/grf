@@ -78,7 +78,7 @@ func (g *GormQueryDriver[Model]) WithOrderBy(orderClause any) *GormQueryDriver[M
 	return g
 }
 
-func Gorm[Model any](db *gorm.DB) *GormQueryDriver[Model] {
+func Gorm[Model any](factory GormORMFactory) *GormQueryDriver[Model] {
 	return &GormQueryDriver[Model]{
 		crud: GormQueries[Model](),
 		filter: &gormQueryMod[Model]{
@@ -96,7 +96,7 @@ func Gorm[Model any](db *gorm.DB) *GormQueryDriver[Model] {
 		},
 		middleware: []gin.HandlerFunc{
 			func(ctx *gin.Context) {
-				CtxSetGorm(ctx, db)
+				CtxSetFactory(ctx, factory)
 				CtxInitQuery(ctx)
 				ctx.Next()
 			},
@@ -106,7 +106,7 @@ func Gorm[Model any](db *gorm.DB) *GormQueryDriver[Model] {
 
 // GormQueries returns default queries providing basic CRUD functionality
 func GormQueries[Model any]() *crud.CRUD[Model] {
-	convertFromDBToInternalValue := FromDBConverter[Model]()
+	ConvertFromDBToInternalValue := FromDBConverter[Model]()
 	var empty Model
 	return &crud.CRUD[Model]{
 		List: func(ctx *gin.Context) ([]models.InternalValue, error) {
@@ -117,7 +117,7 @@ func GormQueries[Model any]() *crud.CRUD[Model] {
 			}
 			internalValues := make([]models.InternalValue, len(rawEntities))
 			for i, rawEntity := range rawEntities {
-				internalValue, convertErr := convertFromDBToInternalValue(rawEntity)
+				internalValue, convertErr := ConvertFromDBToInternalValue(rawEntity)
 				if convertErr != nil {
 					return nil, convertErr
 				}
@@ -134,7 +134,7 @@ func GormQueries[Model any]() *crud.CRUD[Model] {
 				}
 				return nil, retrieveErr
 			}
-			return convertFromDBToInternalValue(rawEntity)
+			return ConvertFromDBToInternalValue(rawEntity)
 		},
 		Create: func(ctx *gin.Context, m models.InternalValue) (models.InternalValue, error) {
 			entity, asModelErr := models.AsModel[Model](m)

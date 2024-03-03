@@ -1,7 +1,9 @@
 package detectors
 
 import (
+	"database/sql"
 	"encoding"
+	"fmt"
 	"reflect"
 
 	"github.com/glothriel/grf/pkg/fields"
@@ -40,16 +42,28 @@ type fieldSettings struct {
 
 	isGRFRepresentable bool
 	isGRFParsable      bool
+	isForeignKey       bool
+
+	isSqlNullInt32 bool
 }
 
 func getFieldSettings[Model any](fieldName string) *fieldSettings {
 	var entity Model
 	var settings *fieldSettings
+	fieldTypes := FieldTypes[Model]()
 	for _, field := range reflect.VisibleFields(reflect.TypeOf(entity)) {
 		jsonTag := field.Tag.Get("json")
 		if jsonTag == fieldName {
 			var theTypeAsAny any
 			reflectedInstance := reflect.New(reflect.TypeOf(reflect.ValueOf(entity).FieldByName(field.Name).Interface())).Elem()
+
+			isForeignKey := false
+			if _, ok := fieldTypes[fmt.Sprintf(
+				"%s_id", jsonTag,
+			)]; ok {
+				isForeignKey = true
+			}
+
 			if reflectedInstance.CanAddr() {
 				theTypeAsAny = reflectedInstance.Addr().Interface()
 			} else {
@@ -60,6 +74,7 @@ func getFieldSettings[Model any](fieldName string) *fieldSettings {
 			_, isEncodingTextUnmarshaler := theTypeAsAny.(encoding.TextUnmarshaler)
 			_, isGRFRepresentable := theTypeAsAny.(fields.GRFRepresentable)
 			_, isGRFParsable := theTypeAsAny.(fields.GRFParsable)
+			_, isSqlNull32 := theTypeAsAny.(*sql.NullInt32)
 
 			settings = &fieldSettings{
 				itsType: reflect.TypeOf(
@@ -69,6 +84,9 @@ func getFieldSettings[Model any](fieldName string) *fieldSettings {
 				isEncodingTextUnmarshaler: isEncodingTextUnmarshaler,
 				isGRFRepresentable:        isGRFRepresentable,
 				isGRFParsable:             isGRFParsable,
+				isForeignKey:              isForeignKey,
+
+				isSqlNullInt32: isSqlNull32,
 			}
 		}
 	}

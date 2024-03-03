@@ -8,6 +8,18 @@ import (
 type RepresentationFunc func(models.InternalValue, string, *gin.Context) (any, error)
 type InternalValueFunc func(map[string]any, string, *gin.Context) (any, error)
 
+type ErrorFieldIsNotPresentInPayload struct {
+	name string
+}
+
+func (e ErrorFieldIsNotPresentInPayload) Error() string {
+	return "Field `" + e.name + "` is not present in the payload"
+}
+
+func NewErrorFieldIsNotPresentInPayload(name string) ErrorFieldIsNotPresentInPayload {
+	return ErrorFieldIsNotPresentInPayload{name: name}
+}
+
 type Field[Model any] struct {
 	name               string
 	representationFunc RepresentationFunc
@@ -68,5 +80,15 @@ func NewField[Model any](name string) *Field[Model] {
 		},
 		Readable: true,
 		Writable: true,
+	}
+}
+
+func StaticValue[Model any](v any) func(oldField *Field[Model]) {
+	return func(oldField *Field[Model]) {
+		oldField.WithInternalValueFunc(
+			func(m map[string]any, s string, ctx *gin.Context) (any, error) {
+				return v, nil
+			},
+		)
 	}
 }

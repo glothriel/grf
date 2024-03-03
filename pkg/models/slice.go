@@ -24,7 +24,6 @@ func (s *SliceField[T]) FromRepresentation(rawValue any) error {
 		}
 		correctTypeSlice = append(correctTypeSlice, typedValue)
 	}
-
 	*s = correctTypeSlice
 	return nil
 }

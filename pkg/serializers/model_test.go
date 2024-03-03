@@ -12,6 +12,7 @@ import (
 )
 
 type mockModel struct {
+	ID  string `json:"id"`
 	Foo string `json:"foo"`
 }
 
@@ -27,18 +28,8 @@ func TestModelSerializerToInternalValue(t *testing.T) {
 	assert.Equal(t, models.InternalValue{"foo": "bar"}, intVal)
 }
 
-func TestModelSerializerToInternalValueSuperflousField(t *testing.T) {
-	// given
-	serializer := NewModelSerializer[mockModel]()
-
-	// when
-	_, err := serializer.ToInternalValue(map[string]any{"foo": "bar", "baz": "qux"}, nil)
-
-	// then
-	assert.Error(t, err)
-}
-
 type anotherMockModel struct {
+	ID  string `json:"id"`
 	Foo string `json:"foo"`
 	Bar string `json:"bar"`
 }

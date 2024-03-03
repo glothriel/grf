@@ -11,7 +11,6 @@ import (
 // ListModelFunc is a gin handler function that lists model instances
 func ListModelViewSetFunc[Model any](idf IDFunc, qd queries.Driver[Model], serializer serializers.Serializer) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
-		effectiveSerializer := serializer
 		qd.Filter().Apply(ctx)
 		qd.Order().Apply(ctx)
 		qd.Pagination().Apply(ctx)
@@ -22,7 +21,7 @@ func ListModelViewSetFunc[Model any](idf IDFunc, qd queries.Driver[Model], seria
 		}
 		representationItems := []any{}
 		for _, internalValue := range internalValues {
-			rawElement, toRawErr := effectiveSerializer.ToRepresentation(
+			rawElement, toRawErr := serializer.ToRepresentation(
 				internalValue, ctx,
 			)
 			if toRawErr != nil {

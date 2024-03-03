@@ -589,6 +589,111 @@ ENDPOINTS = (
             ),
         ),
     ),
+    FieldEndpoint(
+        path="/null_bool_field",
+        create_cases=(
+            RequestTestCase(
+                request={"value": True},
+                expected_status=201,
+                expected_response={"value": True},
+            ),
+            RequestTestCase(
+                request={"value": None},
+                expected_status=201,
+                expected_response={"value": None},
+            ),
+        ),
+    ),
+    FieldEndpoint(
+        path="/null_int16_field",
+        create_cases=(
+            RequestTestCase(
+                request={"value": 1337},
+                expected_status=201,
+                expected_response={"value": 1337},
+            ),
+            RequestTestCase(
+                request={"value": None},
+                expected_status=201,
+                expected_response={"value": None},
+            ),
+        ),
+    ),
+    FieldEndpoint(
+        path="/null_int32_field",
+        create_cases=(
+            RequestTestCase(
+                request={"value": 1337},
+                expected_status=201,
+                expected_response={"value": 1337},
+            ),
+            RequestTestCase(
+                request={"value": None},
+                expected_status=201,
+                expected_response={"value": None},
+            ),
+        ),
+    ),
+    FieldEndpoint(
+        path="/null_int64_field",
+        create_cases=(
+            RequestTestCase(
+                request={"value": 1337},
+                expected_status=201,
+                expected_response={"value": 1337},
+            ),
+            RequestTestCase(
+                request={"value": None},
+                expected_status=201,
+                expected_response={"value": None},
+            ),
+        ),
+    ),
+    FieldEndpoint(
+        path="/null_string_field",
+        create_cases=(
+            RequestTestCase(
+                request={"value": "hello world"},
+                expected_status=201,
+                expected_response={"value": "hello world"},
+            ),
+            RequestTestCase(
+                request={"value": None},
+                expected_status=201,
+                expected_response={"value": None},
+            ),
+        ),
+    ),
+    FieldEndpoint(
+        path="/null_float64_field",
+        create_cases=(
+            RequestTestCase(
+                request={"value": 1.337},
+                expected_status=201,
+                expected_response={"value": 1.337},
+            ),
+            RequestTestCase(
+                request={"value": None},
+                expected_status=201,
+                expected_response={"value": None},
+            ),
+        ),
+    ),
+    FieldEndpoint(
+        path="/null_byte_field",
+        create_cases=(
+            RequestTestCase(
+                request={"value": "a"},
+                expected_status=201,
+                expected_response={"value": "a"},
+            ),
+            RequestTestCase(
+                request={"value": None},
+                expected_status=201,
+                expected_response={"value": None},
+            ),
+        ),
+    ),
 )
 
 

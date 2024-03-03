@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glothriel/grf/pkg/fields"
 	"github.com/glothriel/grf/pkg/models"
 	"github.com/glothriel/grf/pkg/queries"
 	"github.com/glothriel/grf/pkg/queries/dummy"
@@ -26,6 +27,7 @@ var createModelViewTests = []struct {
 	name                string
 	json                string
 	driverMod           func(*dummy.InMemoryQueryDriver[MockModel]) *dummy.InMemoryQueryDriver[MockModel]
+	serializer          serializers.Serializer
 	wantStatus          int
 	wantBodyContainsStr string
 	wantBodyJSONEquals  any
@@ -34,6 +36,7 @@ var createModelViewTests = []struct {
 		name:               "Valid",
 		json:               `{"foo": "bar"}`,
 		wantStatus:         201,
+		serializer:         serializers.NewModelSerializer[MockModel](),
 		wantBodyJSONEquals: map[string]any{"id": float64(2), "foo": "bar"},
 	},
 	{
@@ -45,11 +48,13 @@ var createModelViewTests = []struct {
 			})
 		},
 		wantStatus:          500,
+		serializer:          serializers.NewModelSerializer[MockModel](),
 		wantBodyContainsStr: "internal server error",
 	},
 	{
 		name:       "Invalid JSON",
 		json:       `{"foo": "bar"`,
+		serializer: serializers.NewModelSerializer[MockModel](),
 		wantStatus: 400,
 		wantBodyJSONEquals: map[string]any{
 			"errors": map[string]any{
@@ -58,14 +63,41 @@ var createModelViewTests = []struct {
 		},
 	},
 	{
-		name:       "Invalid Fields",
-		json:       `{"bar": "baz"}`,
-		wantStatus: 400,
-		wantBodyJSONEquals: map[string]any{
-			"errors": map[string]any{
-				"bar": []any{"Field `bar` is not accepted by this endpoint"},
-			},
-		},
+		name:               "Superfluous Fields",
+		json:               `{"bar": "baz"}`,
+		serializer:         serializers.NewModelSerializer[MockModel](),
+		wantStatus:         201,
+		wantBodyJSONEquals: map[string]any{"id": float64(2)},
+	},
+	{
+		name: "Invalid to internal value",
+		json: `{"bar": "baz"}`,
+		serializer: serializers.NewModelSerializer[MockModel]().WithNewField(
+			fields.NewField[MockModel]("huehue").WithInternalValueFunc(
+				func(m map[string]any, s string, ctx *gin.Context) (any, error) {
+					return "", errors.New("Invalid field!")
+				},
+			),
+		),
+		wantStatus:          400,
+		wantBodyContainsStr: "huehue",
+	},
+	{
+		name: "Invalid to representation",
+		json: `{"bar": "baz"}`,
+		serializer: serializers.NewModelSerializer[MockModel]().WithNewField(
+			fields.NewField[MockModel]("huehue").WithInternalValueFunc(
+				func(m map[string]any, s string, ctx *gin.Context) (any, error) {
+					return "hue", nil
+				},
+			).WithRepresentationFunc(
+				func(m models.InternalValue, s string, ctx *gin.Context) (any, error) {
+					return "hue", errors.New("Invalid field!")
+				},
+			),
+		),
+		wantStatus:          400,
+		wantBodyContainsStr: "Invalid field!",
 	},
 }
 
@@ -83,7 +115,7 @@ func TestCreateModelView(t *testing.T) {
 			r.POST("/foos", CreateModelViewSetFunc(
 				IDFromQueryParamIDFunc,
 				driverMod(queries.InMemory(MockModel{Foo: "bar"})),
-				serializers.NewModelSerializer[MockModel](),
+				tt.serializer,
 			))
 			request, requestErr := http.NewRequest(http.MethodPost, "/foos", bytes.NewBufferString(tt.json))
 			w := httptest.NewRecorder()

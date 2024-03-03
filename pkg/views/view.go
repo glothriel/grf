@@ -1,12 +1,16 @@
 package views
 
 import (
-	"net/http"
-
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/authentication"
 	"github.com/glothriel/grf/pkg/queries"
 )
+
+type ViewRoute struct {
+	Method       string
+	RelativePath string
+	Handler      func(*gin.Context)
+}
 
 type View struct {
 	path          string
@@ -15,6 +19,7 @@ type View struct {
 	putHandler    func(*gin.Context)
 	deleteHandler func(*gin.Context)
 	patchHandler  func(*gin.Context)
+	extraRoutes   []*ViewRoute
 	authenticator authentication.Authentication
 
 	middleware []gin.HandlerFunc
@@ -45,59 +50,51 @@ func (v *View) Patch(h func(*gin.Context)) *View {
 	return v
 }
 
+func (v *View) WithRoute(
+	route *ViewRoute,
+) *View {
+	v.extraRoutes = append(v.extraRoutes, route)
+	return v
+}
+
 func (v *View) AddMiddleware(m ...gin.HandlerFunc) *View {
 	v.middleware = append(v.middleware, m...)
 	return v
 }
 
-func (v *View) Authentication(a authentication.Authentication) *View {
-	v.authenticator = a
-	return v
-}
-
 func (v *View) Register(r *gin.Engine) {
 	rg := r.Group(v.path, v.middleware...)
-	rg.GET("", v.authenticated(v.getHandler))
-	rg.POST("", v.authenticated(v.postHandler))
-	rg.PUT("", v.authenticated(v.putHandler))
-	rg.DELETE("", v.authenticated(v.deleteHandler))
-	rg.PATCH("", v.authenticated(v.patchHandler))
-}
-
-func (v *View) authenticated(h gin.HandlerFunc) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		allowed, err := v.authenticator.Authenticate(c)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		if !allowed {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"message": "Unauthorized",
-			})
-			return
-		}
-		h(c)
+	if v.getHandler != nil {
+		rg.GET("", v.getHandler)
+	}
+	if v.postHandler != nil {
+		rg.POST("", v.postHandler)
+	}
+	if v.putHandler != nil {
+		rg.PUT("", v.putHandler)
+	}
+	if v.deleteHandler != nil {
+		rg.DELETE("", v.deleteHandler)
+	}
+	if v.patchHandler != nil {
+		rg.PATCH("", v.patchHandler)
+	}
+	for _, extraAction := range v.extraRoutes {
+		rg.Handle(extraAction.Method, extraAction.RelativePath, extraAction.Handler)
 	}
 }
 
 func NewView[Model any](path string, queryDriver queries.Driver[Model]) *View {
-	defaultHandler := func(ctx *gin.Context) {
-		ctx.JSON(http.StatusMethodNotAllowed, gin.H{
-			"message": "Not allowed",
-		})
-	}
 
 	return &View{
 		path:          path,
-		getHandler:    defaultHandler,
-		postHandler:   defaultHandler,
-		putHandler:    defaultHandler,
-		deleteHandler: defaultHandler,
-		patchHandler:  defaultHandler,
+		getHandler:    nil,
+		postHandler:   nil,
+		putHandler:    nil,
+		deleteHandler: nil,
+		patchHandler:  nil,
 		authenticator: &authentication.AnonymousUserAuthentication{},
+		extraRoutes:   []*ViewRoute{},
 
 		middleware: queryDriver.Middleware(),
 	}

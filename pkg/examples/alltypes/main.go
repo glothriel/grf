@@ -30,11 +30,6 @@ type StringPtrModel struct {
 	Value *string `json:"value" gorm:"column:value"`
 }
 
-type NullStringModel struct {
-	models.BaseModel
-	Value sql.NullString `json:"value" gorm:"column:value"`
-}
-
 type IntModel struct {
 	models.BaseModel
 	Value int `json:"value" gorm:"column:value"`
@@ -94,6 +89,45 @@ type TwoDStringSliceModel struct {
 	Value models.SliceField[models.SliceField[string]] `json:"value" gorm:"column:value;type:text"`
 }
 
+type NullBoolModel struct {
+	models.BaseModel
+	Value sql.NullBool `json:"value" gorm:"column:value"`
+}
+
+type NullInt16Model struct {
+	models.BaseModel
+	Value sql.NullInt16 `json:"value" gorm:"column:value"`
+}
+
+type NullInt32Model struct {
+	models.BaseModel
+	Value sql.NullInt32 `json:"value" gorm:"column:value"`
+}
+
+type NullInt64Model struct {
+	models.BaseModel
+	Value sql.NullInt64 `json:"value" gorm:"column:value"`
+}
+type NullFloat64Model struct {
+	models.BaseModel
+	Value sql.NullFloat64 `json:"value" gorm:"column:value"`
+}
+
+type NullStringModel struct {
+	models.BaseModel
+	Value sql.NullString `json:"value" gorm:"column:value"`
+}
+
+type NullTimeModel struct {
+	models.BaseModel
+	Value sql.NullTime `json:"value" gorm:"column:value"`
+}
+
+type NullByteModel struct {
+	models.BaseModel
+	Value sql.NullByte `json:"value" gorm:"column:value"`
+}
+
 func main() {
 	serverPort := flag.Int("port", 8080, "the port test server runs on")
 	dbFile := flag.String("db", "alltypes.db", "the database file (sqlite) to use, will be created if not exists")
@@ -107,7 +141,7 @@ func main() {
 
 	registerModel[BoolModel](router, gormDB, "/bool_field", "created_at")
 	registerModel[StringModel](router, gormDB, "/string_field", "created_at")
-	// registerModel[StringPtrModel](router, gormDB, "/string_pointer_field", "created_at")
+
 	registerModel[IntModel](router, gormDB, "/int_field", "created_at")
 	registerModel[UintModel](router, gormDB, "/uint_field", "created_at")
 	registerModel[FloatModel](router, gormDB, "/float_field", "created_at")
@@ -116,14 +150,19 @@ func main() {
 	registerModel[MapSliceModel](router, gormDB, "/map_slice_field", "created_at")
 	registerModel[BoolSliceModel](router, gormDB, "/bool_slice_field", "created_at")
 
-	// registerModel[DurationModel](router, gormDB, "/duration_field", "created_at")
 	registerModel[DateTimeModel](router, gormDB, "/datetime_field", "created_at")
 	registerModel[IntSliceModel](router, gormDB, "/int_slice_field", "created_at")
-	// registerModel[NullStringModel](router, gormDB, "/null_string_field", "created_at")
 
 	registerModel[AnySliceModel](router, gormDB, "/any_slice_field", "created_at")
 
 	registerModel[TwoDStringSliceModel](router, gormDB, "/two_d_string_slice_field", "created_at")
+	registerModel[NullBoolModel](router, gormDB, "/null_bool_field", "created_at")
+	registerModel[NullStringModel](router, gormDB, "/null_string_field", "created_at")
+	registerModel[NullInt16Model](router, gormDB, "/null_int16_field", "created_at")
+	registerModel[NullInt32Model](router, gormDB, "/null_int32_field", "created_at")
+	registerModel[NullInt64Model](router, gormDB, "/null_int64_field", "created_at")
+	registerModel[NullFloat64Model](router, gormDB, "/null_float64_field", "created_at")
+	registerModel[NullByteModel](router, gormDB, "/null_byte_field", "created_at")
 
 	logrus.Fatal(router.Run(fmt.Sprintf(":%d", *serverPort)))
 }

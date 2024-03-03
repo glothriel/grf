@@ -2,12 +2,16 @@ package views
 
 import (
 	"fmt"
+	"path"
+	"reflect"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/queries"
 	"github.com/glothriel/grf/pkg/queries/crud"
 	"github.com/glothriel/grf/pkg/serializers"
 	"github.com/glothriel/grf/pkg/types"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -37,22 +41,40 @@ type ViewSet[Model any] struct {
 	RetrieveUpdateDestroyView *View
 }
 
+func (v *ViewSet[Model]) WithExtraAction(
+	action *ExtraAction[Model],
+	serializer serializers.Serializer,
+	isDetail bool,
+) *ViewSet[Model] {
+	view := v.ListCreateView
+	if isDetail {
+		logrus.Error("huehueh")
+		view = v.RetrieveUpdateDestroyView
+	}
+
+	view.WithRoute(&ViewRoute{
+		Method:       action.Method,
+		RelativePath: action.RelativePath,
+		Handler:      action.Handler(v.IDFunc, v.QueryDriver, serializer),
+	})
+	return v
+}
+
 func (v *ViewSet[Model]) Register(r *gin.Engine) {
 	if v.ListAction != nil {
-		v.ListCreateView.Get(v.ListAction.ViewsetHandlerFactoryFunc(v.IDFunc, v.QueryDriver, v.ListAction.Serializer))
+		v.ListCreateView.Get(v.ListAction.ViewSetHandlerFactoryFunc(v.IDFunc, v.QueryDriver, v.ListAction.Serializer))
 	}
 	if v.CreateAction != nil {
-		v.ListCreateView.Post(v.CreateAction.ViewsetHandlerFactoryFunc(v.IDFunc, v.QueryDriver, v.CreateAction.Serializer))
+		v.ListCreateView.Post(v.CreateAction.ViewSetHandlerFactoryFunc(v.IDFunc, v.QueryDriver, v.CreateAction.Serializer))
 	}
 	if v.RetrieveAction != nil {
-		v.RetrieveUpdateDestroyView.Get(v.RetrieveAction.ViewsetHandlerFactoryFunc(v.IDFunc, v.QueryDriver, v.RetrieveAction.Serializer))
+		v.RetrieveUpdateDestroyView.Get(v.RetrieveAction.ViewSetHandlerFactoryFunc(v.IDFunc, v.QueryDriver, v.RetrieveAction.Serializer))
 	}
 	if v.UpdateAction != nil {
-		v.RetrieveUpdateDestroyView.Put(v.UpdateAction.ViewsetHandlerFactoryFunc(v.IDFunc, v.QueryDriver, v.UpdateAction.Serializer))
-		v.RetrieveUpdateDestroyView.Patch(v.UpdateAction.ViewsetHandlerFactoryFunc(v.IDFunc, v.QueryDriver, v.UpdateAction.Serializer))
+		v.RetrieveUpdateDestroyView.Put(v.UpdateAction.ViewSetHandlerFactoryFunc(v.IDFunc, v.QueryDriver, v.UpdateAction.Serializer))
 	}
 	if v.DestroyAction != nil {
-		v.RetrieveUpdateDestroyView.Delete(v.DestroyAction.ViewsetHandlerFactoryFunc(v.IDFunc, v.QueryDriver, v.DestroyAction.Serializer))
+		v.RetrieveUpdateDestroyView.Delete(v.DestroyAction.ViewSetHandlerFactoryFunc(v.IDFunc, v.QueryDriver, v.DestroyAction.Serializer))
 	}
 	v.ListCreateView.Register(r)
 	v.RetrieveUpdateDestroyView.Register(r)
@@ -102,77 +124,77 @@ func (v *ViewSet[Model]) WithFieldTypeMapper(fieldTypeMapper *types.FieldTypeMap
 	return v
 }
 
-func (v *ViewSet[Model]) WithList(handlerFactoryFunc ViewsetHandlerFactoryFunc[Model]) *ViewSet[Model] {
+func (v *ViewSet[Model]) WithList(handlerFactoryFunc ViewSetHandlerFactoryFunc[Model]) *ViewSet[Model] {
 	if v.ListAction == nil {
 		v.ListAction = &ViewSetAction[Model]{
 			Path:                      v.Path,
 			View:                      v.ListCreateView,
-			ViewsetHandlerFactoryFunc: handlerFactoryFunc,
+			ViewSetHandlerFactoryFunc: handlerFactoryFunc,
 			Serializer:                v.DefaultSerializer,
 			QueryDriver:               v.QueryDriver,
 		}
 	} else {
-		v.ListAction.ViewsetHandlerFactoryFunc = handlerFactoryFunc
+		v.ListAction.ViewSetHandlerFactoryFunc = handlerFactoryFunc
 	}
 	return v
 }
 
-func (v *ViewSet[Model]) WithCreate(handlerFactoryFunc ViewsetHandlerFactoryFunc[Model]) *ViewSet[Model] {
+func (v *ViewSet[Model]) WithCreate(handlerFactoryFunc ViewSetHandlerFactoryFunc[Model]) *ViewSet[Model] {
 	if v.CreateAction == nil {
 		v.CreateAction = &ViewSetAction[Model]{
 			Path:                      v.Path,
 			View:                      v.ListCreateView,
-			ViewsetHandlerFactoryFunc: handlerFactoryFunc,
+			ViewSetHandlerFactoryFunc: handlerFactoryFunc,
 			Serializer:                v.DefaultSerializer,
 			QueryDriver:               v.QueryDriver,
 		}
 	} else {
-		v.CreateAction.ViewsetHandlerFactoryFunc = handlerFactoryFunc
+		v.CreateAction.ViewSetHandlerFactoryFunc = handlerFactoryFunc
 	}
 	return v
 }
 
-func (v *ViewSet[Model]) WithRetrieve(handlerFactoryFunc ViewsetHandlerFactoryFunc[Model]) *ViewSet[Model] {
+func (v *ViewSet[Model]) WithRetrieve(handlerFactoryFunc ViewSetHandlerFactoryFunc[Model]) *ViewSet[Model] {
 	if v.RetrieveAction == nil {
 		v.RetrieveAction = &ViewSetAction[Model]{
 			Path:                      v.Path,
 			View:                      v.RetrieveUpdateDestroyView,
-			ViewsetHandlerFactoryFunc: handlerFactoryFunc,
+			ViewSetHandlerFactoryFunc: handlerFactoryFunc,
 			Serializer:                v.DefaultSerializer,
 			QueryDriver:               v.QueryDriver,
 		}
 	} else {
-		v.RetrieveAction.ViewsetHandlerFactoryFunc = handlerFactoryFunc
+		v.RetrieveAction.ViewSetHandlerFactoryFunc = handlerFactoryFunc
 	}
 	return v
 }
 
-func (v *ViewSet[Model]) WithUpdate(handlerFactoryFunc ViewsetHandlerFactoryFunc[Model]) *ViewSet[Model] {
+func (v *ViewSet[Model]) WithUpdate(handlerFactoryFunc ViewSetHandlerFactoryFunc[Model]) *ViewSet[Model] {
 	if v.UpdateAction == nil {
 		v.UpdateAction = &ViewSetAction[Model]{
 			Path:                      v.Path,
 			View:                      v.RetrieveUpdateDestroyView,
-			ViewsetHandlerFactoryFunc: handlerFactoryFunc,
+			ViewSetHandlerFactoryFunc: handlerFactoryFunc,
 			Serializer:                v.DefaultSerializer,
 			QueryDriver:               v.QueryDriver,
 		}
 	} else {
-		v.UpdateAction.ViewsetHandlerFactoryFunc = handlerFactoryFunc
+		v.UpdateAction.ViewSetHandlerFactoryFunc = handlerFactoryFunc
 	}
 	return v
 }
 
-func (v *ViewSet[Model]) WithDestroy(handlerFactoryFunc ViewsetHandlerFactoryFunc[Model]) *ViewSet[Model] {
+func (v *ViewSet[Model]) WithDestroy(handlerFactoryFunc ViewSetHandlerFactoryFunc[Model]) *ViewSet[Model] {
 	if v.DestroyAction == nil {
 		v.DestroyAction = &ViewSetAction[Model]{
 			Path:                      v.Path,
 			View:                      v.RetrieveUpdateDestroyView,
-			ViewsetHandlerFactoryFunc: handlerFactoryFunc,
+			ViewSetHandlerFactoryFunc: handlerFactoryFunc,
 			Serializer:                v.DefaultSerializer,
 			QueryDriver:               v.QueryDriver,
 		}
 	} else {
-		v.DestroyAction.ViewsetHandlerFactoryFunc = handlerFactoryFunc
+		v.DestroyAction.ViewSetHandlerFactoryFunc = handlerFactoryFunc
 	}
 	return v
 }
@@ -214,14 +236,26 @@ func NewModelViewSet[Model any](path string, queryDriver queries.Driver[Model]) 
 	return NewViewSet(path, queryDriver).WithActions(ActionCreate, ActionUpdate, ActionDestroy, ActionList, ActionRetrieve)
 }
 
-func NewViewSet[Model any](path string, queryDriver queries.Driver[Model]) *ViewSet[Model] {
+func NewViewSet[Model any](routerPath string, queryDriver queries.Driver[Model]) *ViewSet[Model] {
+	// I really don't like that, the ID param is not just "id", but otherwise Gin throws a panic when
+	// trying to use ViewSets on paths with multiple IDs.
+	// For example /products/:product_id/photos/:id will panic if you already have /products/:id registered (product_id != id).
+	// If you use /products/:id/photos/:id, Gin doesn't panic, but ofc it doesn't work as expected, ignoring the second :id.
+	// I'm generating the ID param name based on the router path, so you can register (eg) "photos" viewset on
+	// "/products/:product_id/photos" and Retrieve action for photos would be on "/products/:product_id/photos/:photo_id".
+	// Ugly, but nothing panics and there is just no other way to go around this Gin limitation.
+	var m Model
+	// IDParamFunc shoud be interface with Name() and Value() so that you can easily get the ID from the code.
+	idParamName := strings.ToLower(fmt.Sprintf("%s_id", reflect.TypeOf(m).Name()))
+	retrieveUpdateDestroyPath := path.Join(routerPath, fmt.Sprintf(":%s", idParamName))
+
 	return &ViewSet[Model]{
-		Path:                      path,
+		Path:                      routerPath,
 		QueryDriver:               queryDriver,
-		IDFunc:                    IDFromQueryParamIDFunc,
+		IDFunc:                    IDFromPathParam(idParamName),
 		DefaultSerializer:         serializers.NewModelSerializer[Model](),
-		ListCreateView:            NewView(path, queryDriver),
-		RetrieveUpdateDestroyView: NewView(fmt.Sprintf("%s/:id", path), queryDriver),
+		ListCreateView:            NewView(routerPath, queryDriver),
+		RetrieveUpdateDestroyView: NewView(retrieveUpdateDestroyPath, queryDriver),
 	}
 }
 
@@ -229,7 +263,7 @@ type ViewSetAction[Model any] struct {
 	Path string
 
 	View                      *View
-	ViewsetHandlerFactoryFunc ViewsetHandlerFactoryFunc[Model]
+	ViewSetHandlerFactoryFunc ViewSetHandlerFactoryFunc[Model]
 	Serializer                serializers.Serializer
 	QueryDriver               queries.Driver[Model]
 }

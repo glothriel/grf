@@ -50,6 +50,7 @@ def free_port():
 
 class Server:
     def __init__(self, process, url):
+        self.context = {}
         self.process = process
         self.url = url
 
