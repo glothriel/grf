@@ -102,6 +102,33 @@ personViewSet.Register(ginEngine)
 
 Now, your Gin server is ready to handle RESTful API requests for the `Person` model.
 
+## Writing a custom action
+
+It's possible to add a custom action for your ViewSet. This can be useful when you need to add a new endpoint that doesn't fit into the standard CRUD operations, for example like `/users/me` endpoint. This is equivalent to DRF's `@action` decorator.
+
+```go
+views.NewViewSet[CustomerProfile](
+	"/me",
+	qd,
+).WithExtraAction(
+	views.NewExtraAction[CustomerProfile](
+		"GET",
+		"",
+		func(i views.IDFunc, qd queries.Driver[CustomerProfile], s serializers.Serializer) gin.HandlerFunc {
+			return func(ctx *gin.Context) {
+				ctx.JSON(200, gin.H{
+					"email":      "john@doe.com",
+					"first_name": "John",
+					"last_name":  "Doe",
+				})
+			}
+		},
+	),
+	serializers.NewModelSerializer[CustomerProfile]().WithModelFields([]string{"email", "last_name", "first_name"}),
+	false,
+)
+```
+
 ## Conclusion
 
 ViewSets in GRF simplify the creation of RESTful APIs by providing a structured way to define and manage CRUD operations. With ViewSets, you can quickly set up endpoints for your data models and focus on customizing the behavior as needed.
