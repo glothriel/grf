@@ -17,8 +17,7 @@ func CreateModelViewSetFunc[Model any](idf IDFunc, qd queries.Driver[Model], ser
 			WriteError(ctx, parseErr)
 			return
 		}
-		effectiveSerializer := serializer
-		internalValue, fromRawErr := effectiveSerializer.ToInternalValue(rawElement, ctx)
+		internalValue, fromRawErr := serializer.ToInternalValue(rawElement, ctx)
 		if fromRawErr != nil {
 			WriteError(ctx, fromRawErr)
 			return
@@ -28,11 +27,9 @@ func CreateModelViewSetFunc[Model any](idf IDFunc, qd queries.Driver[Model], ser
 			WriteError(ctx, createErr)
 			return
 		}
-		representation, serializeErr := effectiveSerializer.ToRepresentation(internalValue, ctx)
+		representation, serializeErr := serializer.ToRepresentation(internalValue, ctx)
 		if serializeErr != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{
-				"message": serializeErr.Error(),
-			})
+			WriteError(ctx, serializeErr)
 			return
 		}
 		ctx.JSON(http.StatusCreated, representation)

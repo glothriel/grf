@@ -1,36 +1,32 @@
-FROM golang:alpine as builder
+ARG GO_VERSION=1.21.1
 
-
-RUN apk update && apk add --no-cache git ca-certificates gcc musl-dev && update-ca-certificates
-
-ENV USER=user
-ENV UID=10001
-
-RUN adduser \
-    --disabled-password \
-    --gecos "" \
-    --home "/nonexistent" \
-    --shell "/sbin/nologin" \
-    --no-create-home \
-    --uid "${UID}" \
-    "${USER}"
-
-WORKDIR /app
-COPY go.mod .
-COPY go.sum .
+# Build stage
+FROM golang:${GO_VERSION}-bullseye AS build
+ 
+RUN useradd -u 1000 nonroot -m
+USER nonroot:nonroot
+WORKDIR /src
+COPY ./go.mod ./go.sum ./
 
 RUN go mod download
-RUN go mod verify
+COPY pkg ./pkg
+RUN CGO_ENABLED=1 go build \
+    -installsuffix 'static' \
+    -o /home/nonroot/app ./pkg/examples/products/main.go
 
-COPY pkg pkg
-env CGO_ENABLED=1
-RUN GOOS=linux GOARCH=amd64 go build -o /go/bin/products pkg/examples/products/main.go
-RUN chmod +x /go/bin/products
-FROM alpine
-ENV GIN_MODE=release
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /etc/passwd /etc/passwd
-COPY --from=builder /etc/group /etc/group
-COPY --from=builder /go/bin/products /go/bin/products
-USER user:user
-ENTRYPOINT ["/go/bin/products"]
+# Dev stage, can be used for development using docker-compose "build.target" config
+FROM build as dev
+WORKDIR /home/nonroot
+ARG VERSION=dev
+ENV VERSION=${VERSION}
+ENTRYPOINT ["/home/nonroot/app"]
+CMD ["start"]
+
+# Prod stage, uses distrolless image
+FROM gcr.io/distroless/base AS prod
+ARG VERSION=dev
+ENV VERSION=${VERSION}
+USER nonroot:nonroot
+COPY --from=build --chown=nonroot:nonroot /home/nonroot/app /home/nonroot/app
+LABEL maintainer="https://github.com/glothriel"
+ENTRYPOINT ["/home/nonroot/app"]

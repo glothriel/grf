@@ -27,6 +27,11 @@ func SQLScannerOrPassthrough[Model any]() func(map[string]any, string, *gin.Cont
 	}
 
 	return func(reprModel map[string]any, name string, ctx *gin.Context) (any, error) {
+		_, hasBlueprint := fieldBlueprints[name]
+		if !hasBlueprint {
+			logrus.Debugf("Field `%s` has no blueprint, returning value as is", name)
+			return reprModel[name], nil
+		}
 		reflectedInstance := reflect.New(fieldBlueprints[name]).Interface()
 
 		scanner, ok := reflectedInstance.(sql.Scanner)

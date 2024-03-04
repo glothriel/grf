@@ -1,12 +1,15 @@
 package serializers
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/models"
 	playgroundValidate "github.com/go-playground/validator/v10"
+	"github.com/santhosh-tekuri/jsonschema/v5"
+	"github.com/sirupsen/logrus"
 )
 
 type ValidatingSerializer[Model any] struct {
@@ -110,4 +113,96 @@ func (e *ValidationError) Error() string {
 		sb.WriteString("\n")
 	}
 	return sb.String()
+}
+
+type simpleValidator struct {
+	validateFunc func(models.InternalValue) error
+}
+
+func (v *simpleValidator) Validate(intVal models.InternalValue) error {
+	return v.validateFunc(intVal)
+}
+
+func NewSimpleValidator(validateFunc func(models.InternalValue) error) Validator {
+	return &simpleValidator{validateFunc: validateFunc}
+}
+
+type jsonSchemaValidator struct {
+	schema *jsonschema.Schema
+}
+
+// TransformError recursively transforms a ValidationError into a map[string][]string.
+func TransformError(err *jsonschema.ValidationError) map[string][]string {
+
+	result := make(map[string][]string)
+
+	// Helper function to add messages to the map.
+	addMessage := func(key, message string) {
+		if _, exists := result[key]; !exists {
+			result[key] = []string{}
+		}
+		result[key] = append(result[key], message)
+	}
+
+	// Recursive function to process the ValidationError.
+	var processError func(err *jsonschema.ValidationError)
+	processError = func(err *jsonschema.ValidationError) {
+		if len(err.Causes) == 0 {
+			// It's a leaf error, add its message to the map.
+			location := err.InstanceLocation
+			if location == "" {
+				location = "all"
+			} else {
+				location = strings.Replace(location, "/", ".", -1)
+				location = location[1:]
+			}
+			addMessage(location, err.Message)
+		} else {
+			// Process nested errors.
+			for _, cause := range err.Causes {
+				processError(cause)
+			}
+		}
+	}
+
+	processError(err)
+	return result
+}
+
+func (v *jsonSchemaValidator) Validate(intVal models.InternalValue) error {
+
+	if validateErr := v.schema.Validate(
+		map[string]any(intVal),
+	); validateErr != nil {
+		jsonSchemaValidationErr, ok := validateErr.(*jsonschema.ValidationError)
+		if !ok {
+			return &ValidationError{
+				FieldErrors: map[string][]string{
+					"all": {validateErr.Error()},
+				},
+			}
+		}
+		// Convert the jsonschema.ValidationError to a ValidationError
+		fieldErrors := TransformError(jsonSchemaValidationErr)
+
+		return &ValidationError{
+			FieldErrors: fieldErrors,
+		}
+	}
+
+	return nil
+}
+
+func NewJSONSchemaValidator(rawSchema map[string]any) Validator {
+	rawSchema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+	rawSchema["$id"] = "https://glothriel.github.io/grf/schema.json"
+	encodedSchema, marshalErr := json.Marshal(rawSchema)
+	if marshalErr != nil {
+		logrus.Panicf("Error marshaling JSONSchema: %s", marshalErr)
+	}
+	compiledSchema, compileErr := jsonschema.CompileString("schema.json", string(encodedSchema))
+	if compileErr != nil {
+		logrus.Panicf("Error compiling JSONSchema: %s", compileErr)
+	}
+	return &jsonSchemaValidator{schema: compiledSchema}
 }

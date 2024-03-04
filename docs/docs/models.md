@@ -49,7 +49,6 @@ Those types are not supported yet, but will be in the future:
 * time.Duration
 * `slice<int>`
 * pointer fields, for example `*string`
-* sql.Null.* fields, for example `sql.NullString`
 * JSON fields, as non-string, dedicated column types (eg. Postgres)
 
 :::

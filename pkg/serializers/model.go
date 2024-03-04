@@ -21,7 +21,8 @@ type ModelSerializer[Model any] struct {
 func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any, ctx *gin.Context) (models.InternalValue, error) {
 	intVMap := make(map[string]any)
 	superfluousFields := make([]string, 0)
-	for k := range raw {
+
+	for k := range s.Fields {
 		field, ok := s.Fields[k]
 		if !ok {
 			superfluousFields = append(superfluousFields, k)
@@ -30,8 +31,14 @@ func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any, ctx *gin.Co
 		if !field.Writable {
 			continue
 		}
+		// Please remember, that `ToInteralValue` doesn't necessarily extract the value from the `raw` map.
+		// In theory it could use request headers, cookies, external APIs, queries or anything else.
 		intV, err := field.ToInternalValue(raw, ctx)
 		if err != nil {
+			_, isMissingFieldErr := err.(fields.ErrorFieldIsNotPresentInPayload)
+			if isMissingFieldErr {
+				continue
+			}
 			return nil, &ValidationError{FieldErrors: map[string][]string{k: {err.Error()}}}
 		}
 		intVMap[k] = intV
@@ -55,6 +62,10 @@ func (s *ModelSerializer[Model]) ToRepresentation(intVal models.InternalValue, c
 		value, err := field.ToRepresentation(intVal, ctx)
 
 		if err != nil {
+			_, isMissingFieldErr := err.(fields.ErrorFieldIsNotPresentInPayload)
+			if isMissingFieldErr {
+				continue
+			}
 			return nil, &ValidationError{
 				FieldErrors: map[string][]string{
 					field.Name(): {
@@ -94,11 +105,19 @@ func (s *ModelSerializer[Model]) WithModelFields(passedFields []string) *ModelSe
 	for _, field := range passedFields {
 		toRepresentation, toRepresentationErr := s.toRepresentationDetector.ToRepresentation(field)
 		if toRepresentationErr != nil {
+			if toRepresentationErr == detectors.ErrFieldShouldBeSkipped {
+				logrus.Infof("WithModelFields: Skipping model `%s` field `%s`", reflect.TypeOf(m), field)
+				continue
+			}
 			logrus.Panicf("WithModelFields: Failed to register model `%s` fields: %s", reflect.TypeOf(m), toRepresentationErr)
 
 		}
 		toInternalValue, toInternalValueErr := s.toInternalValueDetector.ToInternalValue(field)
 		if toInternalValueErr != nil {
+			if toRepresentationErr == detectors.ErrFieldShouldBeSkipped {
+				logrus.Infof("WithModelFields: Skipping model `%s` field `%s`", reflect.TypeOf(m), field)
+				continue
+			}
 			logrus.Panicf("WithModelFields: Failed to register model `%s` fields: %s", reflect.TypeOf(m), toInternalValueErr)
 		}
 		s.Fields[field] = fields.NewField[Model](
@@ -116,5 +135,7 @@ func NewModelSerializer[Model any]() *ModelSerializer[Model] {
 	return (&ModelSerializer[Model]{
 		toRepresentationDetector: detectors.DefaultToRepresentationDetector[Model](),
 		toInternalValueDetector:  detectors.DefaultToInternalValueDetector[Model](),
-	}).WithModelFields(detectors.Fields[Model]())
+	}).WithModelFields(
+		detectors.Fields[Model](),
+	).WithField("id", func(oldField *fields.Field[Model]) { oldField.ReadOnly() })
 }

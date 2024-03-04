@@ -55,15 +55,16 @@ Other gunicorn flag variants had even lower performance.
 * ~~Improve unit test coverage~~
 * ~~Documentation portal~~
 * Add support for complex to implement types:
-    * time.Time
+    * time.Time and sql.NullTime
     * time.Duration
     * `list<int>`
     * pointer fields, for example `*string`
-    * sql.Null.* fields, for example `sql.NullString`
+    * ~~sql.Null.* fields, for example `sql.NullString`~~
     * JSON fields, both as text (sqlite) and as dedicated columns (eg. Postgres)
 * Add support for partial update (PATCH)
+* SliceModelFields do not work with JSONSchemaValidator
 * Add support for model relations
-* Add support for viewsets
+* ~~Add support for viewsets~~
 * Add support for authentication
 * Add support for complex pagination implementations
 * Add support for permissions (authorization)

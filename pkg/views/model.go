@@ -9,8 +9,16 @@ import (
 
 type IDFunc func(*gin.Context) string
 
-type ViewsetHandlerFactoryFunc[Model any] func(IDFunc, queries.Driver[Model], serializers.Serializer) gin.HandlerFunc
+type ViewSetHandlerFunc[Model any] func(IDFunc, queries.Driver[Model], serializers.Serializer) gin.HandlerFunc
+
+type ViewSetHandlerFactoryFunc[Model any] ViewSetHandlerFunc[Model]
 
 func IDFromQueryParamIDFunc(ctx *gin.Context) string {
 	return ctx.Param("id")
+}
+
+func IDFromPathParam(paramName string) func(ctx *gin.Context) string {
+	return func(ctx *gin.Context) string {
+		return ctx.Param(paramName)
+	}
 }

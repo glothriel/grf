@@ -23,7 +23,9 @@ jobs:
       run: python .github/scripts/create-empty-tests.py
 
     - name: Run Unit tests
-      run: go test -v -coverpkg=./... -race -coverprofile=coverage.out -covermode=atomic ./...
+      run: |
+        go test -v -coverpkg=./... -race -coverprofile=coverage.out.tmp -covermode=atomic ./...
+        cat coverage.out.tmp | grep -v "examples/" > coverage.out
     
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@v3

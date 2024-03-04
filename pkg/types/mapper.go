@@ -83,18 +83,96 @@ func DefaultFieldTypeMapper() *FieldTypeMapper {
 		InternalToResponse: ConvertPassThroughWithTypeValidation[time.Time],
 		RequestToInternal:  ConvertPassThroughWithTypeValidation[time.Time],
 	}
-	// int is a special case, because JSON only has float64, so we need to convert
-	for _, t := range []string{"int", "int8", "int16", "int32", "int64"} {
-		registered[t] = FieldType{
-			InternalToResponse: ConvertPassThrough,
-			RequestToInternal:  ConvertFloatToInt,
-		}
+	registered["int"] = FieldType{
+		InternalToResponse: ConvertPassThrough,
+		RequestToInternal: ConvertFloatDynamic(
+			func(f float64) any {
+				return int(f)
+			},
+			true,
+		),
 	}
-	for _, t := range []string{"uint", "uint8", "uint16", "uint32", "uint64"} {
-		registered[t] = FieldType{
-			InternalToResponse: ConvertPassThrough,
-			RequestToInternal:  ConvertFloatToUint,
-		}
+	registered["int8"] = FieldType{
+		InternalToResponse: ConvertPassThrough,
+		RequestToInternal: ConvertFloatDynamic(
+			func(f float64) any {
+				return int8(f)
+			},
+			true,
+		),
+	}
+
+	registered["int16"] = FieldType{
+		InternalToResponse: ConvertPassThrough,
+		RequestToInternal: ConvertFloatDynamic(
+			func(f float64) any {
+				return int16(f)
+			},
+			true,
+		),
+	}
+	registered["int32"] = FieldType{
+		InternalToResponse: ConvertPassThrough,
+		RequestToInternal: ConvertFloatDynamic(
+			func(f float64) any {
+				return int32(f)
+			},
+			true,
+		),
+	}
+	registered["int64"] = FieldType{
+		InternalToResponse: ConvertPassThrough,
+		RequestToInternal: ConvertFloatDynamic(
+			func(f float64) any {
+				return int64(f)
+			},
+			true,
+		),
+	}
+	registered["uint"] = FieldType{
+		InternalToResponse: ConvertPassThrough,
+		RequestToInternal: ConvertFloatDynamic(
+			func(f float64) any {
+				return uint(f)
+			},
+			false,
+		),
+	}
+	registered["uint8"] = FieldType{
+		InternalToResponse: ConvertPassThrough,
+		RequestToInternal: ConvertFloatDynamic(
+			func(f float64) any {
+				return uint8(f)
+			},
+			false,
+		),
+	}
+	registered["uint16"] = FieldType{
+		InternalToResponse: ConvertPassThrough,
+		RequestToInternal: ConvertFloatDynamic(
+			func(f float64) any {
+				return uint16(f)
+			},
+			false,
+		),
+	}
+	registered["uint32"] = FieldType{
+		InternalToResponse: ConvertPassThrough,
+		RequestToInternal: ConvertFloatDynamic(
+			func(f float64) any {
+				return uint32(f)
+			},
+			false,
+		),
+	}
+	registered["uint64"] = FieldType{
+		InternalToResponse: ConvertPassThrough,
+		RequestToInternal: ConvertFloatDynamic(
+			func(f float64) any {
+				return uint64(f)
+			},
+			false,
+		),
 	}
 
 	return &FieldTypeMapper{
@@ -138,4 +216,17 @@ func ConvertFloatToUint(in any) (any, error) {
 		}
 	}
 	return nil, fmt.Errorf("Expected type `float64`, got `%T`", in)
+}
+
+func ConvertFloatDynamic(convert func(float64) any, canBeBelowZero bool) func(any) (any, error) {
+	return func(in any) (any, error) {
+		if f, ok := in.(float64); ok {
+			if math.Mod(f, 1) == 0 && ((!canBeBelowZero && f >= 0) || canBeBelowZero) {
+				return convert(f), nil
+			} else {
+				return 0, fmt.Errorf("Value %f is not an integer", f)
+			}
+		}
+		return nil, fmt.Errorf("Expected type `float64`, got `%T`", in)
+	}
 }

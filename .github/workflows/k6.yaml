@@ -26,7 +26,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Run container from image
-        run: docker run -d -p 8080:8080 products:latest --db=/tmp/db.sqlite3
+        run: docker run -d -p 8080:8080 products:latest
 
       - name: Install k6
         run: |
