@@ -65,12 +65,10 @@ Other gunicorn flag variants had even lower performance.
 * SliceModelFields do not work with JSONSchemaValidator
 * Add support for model relations
 * ~~Add support for viewsets~~
-* Add support for authentication
 * Add support for complex pagination implementations
 * Add support for permissions (authorization)
 * Add support for automatic OpenAPI spec generation
-* Add support for caches
-* Add support for throttling
+
 * Add support for output formatters
 * Add support for non-JSON types
 * Add support for translations (error messages)

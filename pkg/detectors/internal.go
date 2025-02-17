@@ -5,6 +5,7 @@ import (
 	"encoding"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/fields"
@@ -46,6 +47,28 @@ func (p *usingGRFParsableToInternalValueDetector[Model]) ToInternalValue(fieldNa
 		), nil
 	}
 	return nil, fmt.Errorf("Field `%s` is not a GRFParsable", fieldName)
+}
+
+type isoTimeTimeToInternalValueDetector[Model any] struct{}
+
+func (p *isoTimeTimeToInternalValueDetector[Model]) ToInternalValue(fieldName string) (fields.InternalValueFunc, error) {
+	fieldSettings := getFieldSettings[Model](fieldName)
+	if fieldSettings.itsType.Name() == "Time" && fieldSettings.itsType.PkgPath() == "time" {
+		return ConvertFuncToInternalValueFuncAdapter(
+			func(v any) (any, error) {
+				vStr, isString := v.(string)
+				if isString {
+					t, err := time.Parse(time.RFC3339, vStr)
+					if err != nil {
+						return nil, err
+					}
+					return t, nil
+				}
+				return nil, fmt.Errorf("Field `%s` is not a string", fieldName)
+			},
+		), nil
+	}
+	return nil, fmt.Errorf("Field `%s` is not a time.Time", fieldName)
 }
 
 type fromTypeMapperToInternalValueDetector[Model any] struct {
@@ -144,6 +167,7 @@ func DefaultToInternalValueDetector[Model any]() ToInternalValueDetector {
 			internalChild: &chainingToInternalValueDetector[Model]{
 				children: []ToInternalValueDetector{
 					&usingGRFParsableToInternalValueDetector[Model]{},
+					&isoTimeTimeToInternalValueDetector[Model]{},
 					&fromTypeMapperToInternalValueDetector[Model]{
 						mapper:         types.Mapper(),
 						modelTypeNames: FieldTypes[Model](),

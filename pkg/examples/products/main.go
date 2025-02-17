@@ -32,7 +32,7 @@ type Product struct {
 
 	Name        string          `json:"name" gorm:"size:191;column:name"`
 	Description string          `json:"description" gorm:"type:text;column:description"`
-	Price       decimal.Decimal `json:"price" gorm:"type:decimal(19,4)"`
+	Price       decimal.Decimal `json:"price" gorm:"type:decimal(8,2)"`
 
 	CategoryID string   `json:"category_id" gorm:"size:191;column:category_id"`
 	Category   Category `gorm:"constraint:OnUpdate:CASCADE,OnDelete:CASCADE;not null;"`
