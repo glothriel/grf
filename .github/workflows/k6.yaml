@@ -39,13 +39,13 @@ jobs:
         run: ./k6 run tests/k6/test.js --vus 10 --duration 30s
 
       - name: Archive k6 test result
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: k6
           path: k6.html
 
       - name: Archive system resources diagrams
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: system
           path: system.html
