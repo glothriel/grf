@@ -20,7 +20,23 @@ func NewErrorFieldIsNotPresentInPayload(name string) ErrorFieldIsNotPresentInPay
 	return ErrorFieldIsNotPresentInPayload{name: name}
 }
 
-type Field[Model any] struct {
+type Field interface {
+	Name() string
+	ToRepresentation(models.InternalValue, *gin.Context) (any, error)
+	ToInternalValue(map[string]any, *gin.Context) (any, error)
+
+	IsReadable() bool
+	IsWritable() bool
+
+	WithReadOnly() Field
+	WithWriteOnly() Field
+	WithReadWrite() Field
+
+	WithRepresentationFunc(RepresentationFunc) Field
+	WithInternalValueFunc(InternalValueFunc) Field
+}
+
+type ConcreteField[Model any] struct {
 	name               string
 	representationFunc RepresentationFunc
 	internalValueFunc  InternalValueFunc
@@ -29,48 +45,56 @@ type Field[Model any] struct {
 	Writable bool
 }
 
-func (s *Field[Model]) Name() string {
+func (s *ConcreteField[Model]) Name() string {
 	return s.name
 }
 
-func (s *Field[Model]) ToRepresentation(intVal models.InternalValue, ctx *gin.Context) (any, error) {
+func (s *ConcreteField[Model]) ToRepresentation(intVal models.InternalValue, ctx *gin.Context) (any, error) {
 	return s.representationFunc(intVal, s.name, ctx)
 }
 
-func (s *Field[Model]) ToInternalValue(reprModel map[string]any, ctx *gin.Context) (any, error) {
+func (s *ConcreteField[Model]) ToInternalValue(reprModel map[string]any, ctx *gin.Context) (any, error) {
 	return s.internalValueFunc(reprModel, s.name, ctx)
 }
 
-func (s *Field[Model]) ReadOnly() *Field[Model] {
+func (s *ConcreteField[Model]) WithReadOnly() Field {
 	s.Readable = true
 	s.Writable = false
 	return s
 }
 
-func (s *Field[Model]) WriteOnly() *Field[Model] {
+func (s *ConcreteField[Model]) WithWriteOnly() Field {
 	s.Readable = false
 	s.Writable = true
 	return s
 }
 
-func (s *Field[Model]) ReadWrite() *Field[Model] {
+func (s *ConcreteField[Model]) WithReadWrite() Field {
 	s.Readable = true
 	s.Writable = true
 	return s
 }
 
-func (s *Field[Model]) WithRepresentationFunc(f RepresentationFunc) *Field[Model] {
+func (s *ConcreteField[Model]) IsReadable() bool {
+	return s.Readable
+}
+
+func (s *ConcreteField[Model]) IsWritable() bool {
+	return s.Writable
+}
+
+func (s *ConcreteField[Model]) WithRepresentationFunc(f RepresentationFunc) Field {
 	s.representationFunc = f
 	return s
 }
 
-func (s *Field[Model]) WithInternalValueFunc(f InternalValueFunc) *Field[Model] {
+func (s *ConcreteField[Model]) WithInternalValueFunc(f InternalValueFunc) Field {
 	s.internalValueFunc = f
 	return s
 }
 
-func NewField[Model any](name string) *Field[Model] {
-	return &Field[Model]{
+func NewField[Model any](name string) Field {
+	return &ConcreteField[Model]{
 		name: name,
 		representationFunc: func(intVal models.InternalValue, name string, ctx *gin.Context) (any, error) {
 			return intVal[name], nil
@@ -83,8 +107,8 @@ func NewField[Model any](name string) *Field[Model] {
 	}
 }
 
-func StaticValue[Model any](v any) func(oldField *Field[Model]) {
-	return func(oldField *Field[Model]) {
+func StaticValue[Model any](v any) func(oldField Field) {
+	return func(oldField Field) {
 		oldField.WithInternalValueFunc(
 			func(m map[string]any, s string, ctx *gin.Context) (any, error) {
 				return v, nil

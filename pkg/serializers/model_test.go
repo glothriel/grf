@@ -38,8 +38,8 @@ func TestModelSerializerToInternalValueNonWritableField(t *testing.T) {
 	// given
 	serializer := NewModelSerializer[anotherMockModel]().WithField(
 		"bar",
-		func(oldField *fields.Field[anotherMockModel]) {
-			oldField.ReadOnly()
+		func(oldField fields.Field) {
+			oldField.WithReadOnly()
 		},
 	)
 
@@ -84,8 +84,8 @@ func TestModelSerializerToRepresentationNonReadableField(t *testing.T) {
 	// given
 	serializer := NewModelSerializer[anotherMockModel]().WithField(
 		"bar",
-		func(oldField *fields.Field[anotherMockModel]) {
-			oldField.WriteOnly()
+		func(oldField fields.Field) {
+			oldField.WithWriteOnly()
 		},
 	)
 
@@ -153,7 +153,7 @@ func TestModelSerializerWithField(t *testing.T) {
 	// given
 	serializer := NewModelSerializer[mockModel]().WithField(
 		"foo",
-		func(f *fields.Field[mockModel]) {
+		func(f fields.Field) {
 			f.WithInternalValueFunc(
 				func(m map[string]any, s string, ctx *gin.Context) (any, error) {
 					return m[s].(string) + " huehue", nil
@@ -178,7 +178,7 @@ func TestModelSerializerWithFieldDoesNotExist(t *testing.T) {
 	assert.Panics(t, func() {
 		serializer.WithField(
 			"bar",
-			func(f *fields.Field[mockModel]) {
+			func(f fields.Field) {
 				f.WithInternalValueFunc(
 					func(m map[string]any, s string, ctx *gin.Context) (any, error) {
 						return nil, nil

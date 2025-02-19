@@ -96,7 +96,7 @@ var caseDestroy viewsetTestCase = viewsetTestCase{
 }
 
 func TestEmptyViewsetRespondsWithMethodNotFound(t *testing.T) {
-	viewset := NewViewSet[anotherMockModel]("/mocks", queries.InMemory[anotherMockModel]())
+	viewset := NewViewSet[anotherMockModel]("/mocks", queries.InMemory[anotherMockModel](), serializers.NewModelSerializer[anotherMockModel]())
 	_, r := gin.CreateTestContext(httptest.NewRecorder())
 	viewset.Register(r)
 
@@ -114,7 +114,7 @@ func TestEmptyViewsetRespondsWithMethodNotFound(t *testing.T) {
 	}
 }
 func TestViewsetWhenOnlyListActionRegisteredAllOthersReturn404(t *testing.T) {
-	viewset := NewViewSet[anotherMockModel]("/mocks", queries.InMemory[anotherMockModel]()).WithActions(ActionList)
+	viewset := NewViewSet[anotherMockModel]("/mocks", queries.InMemory[anotherMockModel](), serializers.NewModelSerializer[anotherMockModel]()).WithActions(ActionList)
 	_, r := gin.CreateTestContext(httptest.NewRecorder())
 	viewset.Register(r)
 
@@ -164,7 +164,7 @@ func TestNewModelViewset(t *testing.T) {
 }
 func TestNewViewSetAllActions(t *testing.T) {
 	checkAllActionsNoErrors(
-		t, NewViewSet[anotherMockModel]("/mocks", queries.InMemory[anotherMockModel]()).WithActions(
+		t, NewViewSet[anotherMockModel]("/mocks", queries.InMemory[anotherMockModel](), serializers.NewModelSerializer[anotherMockModel]()).WithActions(
 			ActionList, ActionCreate, ActionRetrieve, ActionUpdate, ActionDestroy,
 		),
 	)

@@ -5,6 +5,7 @@ import (
 	"encoding"
 	"fmt"
 	"reflect"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/fields"
@@ -24,6 +25,7 @@ func DefaultToRepresentationDetector[Model any]() ToRepresentationDetector[Model
 			representationChild: &chainingToRepresentationDetector[Model]{
 				children: []ToRepresentationDetector[Model]{
 					&usingGRFRepresentableToRepresentationProvider[Model]{},
+					&timeTimeToRepresentationProvider[Model]{},
 					&fromTypeMapperToRepresentationProvider[Model]{
 						mapper:         types.Mapper(),
 						modelTypeNames: FieldTypes[Model](),
@@ -120,6 +122,25 @@ func (p usingGRFRepresentableToRepresentationProvider[Model]) ToRepresentation(f
 		), nil
 	}
 	return nil, fmt.Errorf("Field `%s` is not a GRFRepresentable", fieldName)
+}
+
+type timeTimeToRepresentationProvider[Model any] struct{}
+
+func (p timeTimeToRepresentationProvider[Model]) ToRepresentation(fieldName string) (fields.RepresentationFunc, error) {
+
+	fieldSettings := getFieldSettings[Model](fieldName)
+	if fieldSettings.itsType.Name() == "Time" && fieldSettings.itsType.PkgPath() == "time" {
+		return ConvertFuncToRepresentationFuncAdapter(
+			func(v any) (any, error) {
+				vAsTime, ok := v.(time.Time)
+				if ok {
+					return vAsTime.Format("2006-01-02T15:04:05Z"), nil
+				}
+				return nil, fmt.Errorf("Field `%s` is not a time.Time", fieldName)
+			},
+		), nil
+	}
+	return nil, fmt.Errorf("Field `%s` is not a time.Time", fieldName)
 }
 
 type usingSqlNullFieldToRepresentationProvider[Model any, sqlNullType any] struct {

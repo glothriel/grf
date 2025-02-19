@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -14,29 +15,43 @@ import (
 	"github.com/glothriel/grf/pkg/views"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
+var gormDBs sync.Map
+
 func registerModel[Model any](
-	prefix string,
+	prefix string, dialector gorm.Dialector, registeredModels ...any,
 ) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
-	gormDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		panic("failed to connect database")
+
+	gDB, ok := gormDBs.Load(dialector.Name())
+	if !ok {
+		theDB, err := gorm.Open(dialector, &gorm.Config{})
+		if err != nil {
+			panic("failed to connect database")
+		}
+		gDB = any(theDB)
+		gormDBs.Store(dialector.Name(), gDB)
 	}
+
+	gormDB, ok := gDB.(*gorm.DB)
+	if !ok {
+		panic("failed to cast database")
+	}
+
 	views.NewModelViewSet[Model](prefix, queries.GORM[Model](gormDB).WithOrderBy(fmt.Sprintf("%s ASC", "created_at"))).Register(router)
 
 	var entity Model
-	if migrateErr := gormDB.AutoMigrate(&entity); migrateErr != nil {
+	registeredModels = append(registeredModels, entity)
+	if migrateErr := gormDB.AutoMigrate(registeredModels...); migrateErr != nil {
 		logrus.Fatalf("Error migrating database: %s", migrateErr)
 	}
 	return router
 }
 
-func NewRequest(method, url string, body map[string]any) *http.Request {
+func newRequest(method, url string, body map[string]any) *http.Request {
 	req, _ := http.NewRequest(method, url, nil)
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
@@ -49,7 +64,7 @@ func NewRequest(method, url string, body map[string]any) *http.Request {
 	return req
 }
 
-type TestCase struct {
+type requestTestCase struct {
 	name         string
 	t            *testing.T
 	req          *http.Request
@@ -57,40 +72,56 @@ type TestCase struct {
 	expectedJSON any
 }
 
-func (tc *TestCase) Req(r *http.Request) *TestCase {
+func (tc *requestTestCase) Req(r *http.Request) *requestTestCase {
 	tc.req = r
 	return tc
 }
 
-func (tc *TestCase) ExCode(c int) *TestCase {
+func (tc *requestTestCase) ExCode(c int) *requestTestCase {
 	tc.expectedCode = c
 	return tc
 }
 
-func (tc *TestCase) ExJson(j any) *TestCase {
+func (tc *requestTestCase) ExJson(j any) *requestTestCase {
 	tc.expectedJSON = j
 	return tc
 }
 
 func stripFields(v any, fields []string) any {
-	vMap, ok := v.(map[string]any)
-	if ok {
-		for _, field := range fields {
-			delete(vMap, field)
+	switch val := v.(type) {
+	case map[string]any:
+		// Create a new map to avoid modifying the original
+		result := make(map[string]any)
+		for k, v := range val {
+			if !contains(fields, k) {
+				// Recursively strip fields from nested values
+				result[k] = stripFields(v, fields)
+			}
 		}
-		return vMap
-	}
-	vSlice, ok := v.([]any)
-	if ok {
-		for i, item := range vSlice {
-			vSlice[i] = stripFields(item, fields)
+		return result
+	case []any:
+		// Create a new slice to avoid modifying the original
+		result := make([]any, len(val))
+		for i, item := range val {
+			// Recursively strip fields from slice elements
+			result[i] = stripFields(item, fields)
 		}
-		return vSlice
+		return result
+	default:
+		return v
 	}
-	return v
 }
 
-func (tc *TestCase) Run(router *gin.Engine) string {
+func contains(slice []string, str string) bool {
+	for _, s := range slice {
+		if s == str {
+			return true
+		}
+	}
+	return false
+}
+
+func (tc *requestTestCase) Run(router *gin.Engine) string {
 	var theID string
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, tc.req)
@@ -115,8 +146,8 @@ func (tc *TestCase) Run(router *gin.Engine) string {
 	return theID
 }
 
-func NewAssertedReq(t *testing.T, name string) *TestCase {
-	return &TestCase{
+func newRequestTestCase(t *testing.T, name string) *requestTestCase {
+	return &requestTestCase{
 		t:    t,
 		name: name,
 	}

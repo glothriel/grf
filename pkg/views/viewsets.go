@@ -11,7 +11,6 @@ import (
 	"github.com/glothriel/grf/pkg/queries/crud"
 	"github.com/glothriel/grf/pkg/serializers"
 	"github.com/glothriel/grf/pkg/types"
-	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -48,7 +47,6 @@ func (v *ViewSet[Model]) WithExtraAction(
 ) *ViewSet[Model] {
 	view := v.ListCreateView
 	if isDetail {
-		logrus.Error("huehueh")
 		view = v.RetrieveUpdateDestroyView
 	}
 
@@ -60,7 +58,7 @@ func (v *ViewSet[Model]) WithExtraAction(
 	return v
 }
 
-func (v *ViewSet[Model]) Register(r *gin.Engine) {
+func (v *ViewSet[Model]) Register(r gin.IRouter) {
 	if v.ListAction != nil {
 		v.ListCreateView.Get(v.ListAction.ViewSetHandlerFactoryFunc(v.IDFunc, v.QueryDriver, v.ListAction.Serializer))
 	}
@@ -200,20 +198,32 @@ func (v *ViewSet[Model]) WithDestroy(handlerFactoryFunc ViewSetHandlerFactoryFun
 }
 
 func (v *ViewSet[Model]) WithActions(actions ...ActionID) *ViewSet[Model] {
+	actionsMap := []struct {
+		id       ActionID
+		setFunc  func(ViewSetHandlerFactoryFunc[Model]) *ViewSet[Model]
+		clearPtr **ViewSetAction[Model]
+		factory  ViewSetHandlerFactoryFunc[Model]
+	}{
+		{ActionCreate, v.WithCreate, &v.CreateAction, CreateModelViewSetFunc[Model]},
+		{ActionUpdate, v.WithUpdate, &v.UpdateAction, UpdateModelViewSetFunc[Model]},
+		{ActionDestroy, v.WithDestroy, &v.DestroyAction, DestroyModelViewSetFunc[Model]},
+		{ActionList, v.WithList, &v.ListAction, ListModelViewSetFunc[Model]},
+		{ActionRetrieve, v.WithRetrieve, &v.RetrieveAction, RetrieveModelViewSetFunc[Model]},
+	}
+
+	actionSet := make(map[ActionID]bool)
 	for _, action := range actions {
-		switch action {
-		case ActionCreate:
-			v.WithCreate(CreateModelViewSetFunc[Model])
-		case ActionUpdate:
-			v.WithUpdate(UpdateModelViewSetFunc[Model])
-		case ActionDestroy:
-			v.WithDestroy(DestroyModelViewSetFunc[Model])
-		case ActionList:
-			v.WithList(ListModelViewSetFunc[Model])
-		case ActionRetrieve:
-			v.WithRetrieve(RetrieveModelViewSetFunc[Model])
+		actionSet[action] = true
+	}
+
+	for _, action := range actionsMap {
+		if actionSet[action.id] {
+			action.setFunc(action.factory)
+		} else {
+			*action.clearPtr = nil
 		}
 	}
+
 	return v
 }
 
@@ -233,10 +243,14 @@ func (v *ViewSet[Model]) OnDestroy(modFunc func(d crud.DestroyQueryFunc) crud.De
 }
 
 func NewModelViewSet[Model any](path string, queryDriver queries.Driver[Model]) *ViewSet[Model] {
-	return NewViewSet(path, queryDriver).WithActions(ActionCreate, ActionUpdate, ActionDestroy, ActionList, ActionRetrieve)
+	return NewViewSet(path, queryDriver, serializers.NewModelSerializer[Model]()).WithActions(ActionCreate, ActionUpdate, ActionDestroy, ActionList, ActionRetrieve)
 }
 
-func NewViewSet[Model any](routerPath string, queryDriver queries.Driver[Model]) *ViewSet[Model] {
+func NewViewSet[Model any](
+	routerPath string,
+	queryDriver queries.Driver[Model],
+	defaultSerializer serializers.Serializer,
+) *ViewSet[Model] {
 	// I really don't like that, the ID param is not just "id", but otherwise Gin throws a panic when
 	// trying to use ViewSets on paths with multiple IDs.
 	// For example /products/:product_id/photos/:id will panic if you already have /products/:id registered (product_id != id).
@@ -253,7 +267,7 @@ func NewViewSet[Model any](routerPath string, queryDriver queries.Driver[Model])
 		Path:                      routerPath,
 		QueryDriver:               queryDriver,
 		IDFunc:                    IDFromPathParam(idParamName),
-		DefaultSerializer:         serializers.NewModelSerializer[Model](),
+		DefaultSerializer:         defaultSerializer,
 		ListCreateView:            NewView(routerPath, queryDriver),
 		RetrieveUpdateDestroyView: NewView(retrieveUpdateDestroyPath, queryDriver),
 	}

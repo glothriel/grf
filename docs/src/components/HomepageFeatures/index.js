@@ -19,6 +19,7 @@ const FeatureList = [
     description: (
       <>
         Hate code generation? So do we. GRF uses generics to hide the boring stuff and let you focus on what brings value to your project.
+
       </>
     ),
   },

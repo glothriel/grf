@@ -100,6 +100,7 @@ func main() {
 	views.NewViewSet[Category](
 		"/categories",
 		queries.GORM[Category](gormDB).WithOrderBy("name ASC"),
+		serializers.NewModelSerializer[Category](),
 	).WithActions(
 		views.ActionList, views.ActionCreate,
 	).WithSerializer(
@@ -129,8 +130,8 @@ func main() {
 		serializers.NewValidatingSerializer[Photo](
 			serializers.NewModelSerializer[Photo]().WithField(
 				"product_id",
-				func(oldField *fields.Field[Photo]) {
-					oldField.WriteOnly().WithInternalValueFunc(
+				func(oldField fields.Field) {
+					oldField.WithWriteOnly().WithInternalValueFunc(
 						func(m map[string]any, s string, ctx *gin.Context) (any, error) {
 							return ctx.Param("product_id"), nil
 						},
@@ -182,6 +183,7 @@ func main() {
 	views.NewViewSet[CustomerProfile](
 		"/me",
 		meQD,
+		serializers.NewModelSerializer[CustomerProfile](),
 	).WithExtraAction(
 		views.NewExtraAction[CustomerProfile](
 			"GET",
@@ -200,7 +202,7 @@ func main() {
 			[]string{"email", "last_name", "first_name"},
 		).WithField(
 			"email",
-			func(oldField *fields.Field[CustomerProfile]) {
+			func(oldField fields.Field) {
 				oldField.WithInternalValueFunc(
 					func(m map[string]any, s string, ctx *gin.Context) (any, error) {
 						email := ctx.Request.Header.Get("X-User-Email")
