@@ -4,15 +4,96 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"github.com/gin-gonic/gin"
 	"github.com/glothriel/grf/pkg/models"
 	"github.com/shopspring/decimal"
+	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/suite"
+	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 )
 
-func TestTypes(t *testing.T) {
+func TestSQLite(t *testing.T) {
+	DoTestTypes(t, sqlite.Open(":memory:"))
+}
+
+type BoolModel struct {
+	models.BaseModel
+	Value bool `json:"value" gorm:"column:value"`
+}
+
+type StringModel struct {
+	models.BaseModel
+	Value string `json:"value" gorm:"column:value"`
+}
+
+type IntModel struct {
+	models.BaseModel
+	Value int `json:"value" gorm:"column:value"`
+}
+
+type UintModel struct {
+	models.BaseModel
+	Value uint `json:"value" gorm:"column:value"`
+}
+
+type FloatModel struct {
+	models.BaseModel
+	Value float64 `json:"value" gorm:"column:value"`
+}
+
+type StringSliceModel struct {
+	models.BaseModel
+	Value models.SliceField[string] `json:"value" gorm:"column:value;type:json"`
+}
+
+type FloatSliceModel struct {
+	models.BaseModel
+	Value models.SliceField[float64] `json:"value" gorm:"column:value;type:json"`
+}
+
+type TimeModel struct {
+	models.BaseModel
+	Value time.Time `json:"value" gorm:"column:value;type:timestamp"`
+}
+
+type BoolSliceModel struct {
+	models.BaseModel
+	Value models.SliceField[bool] `json:"value" gorm:"column:value;type:json"`
+}
+
+type AnySliceModel struct {
+	models.BaseModel
+	Value models.SliceField[any] `json:"value" gorm:"column:value;type:json"`
+}
+
+type NullBoolModel struct {
+	models.BaseModel
+	Value sql.NullBool `json:"value" gorm:"column:value"`
+}
+
+type NullStringModel struct {
+	models.BaseModel
+	Value sql.NullString `json:"value" gorm:"column:value"`
+}
+
+type DecimalModel struct {
+	models.BaseModel
+	Value decimal.Decimal `json:"value" gorm:"column:value"`
+}
+
+type NullFloat64Model struct {
+	models.BaseModel
+	Value sql.NullFloat64 `json:"value" gorm:"column:value"`
+}
+
+func DoTestTypes(t *testing.T, dialector gorm.Dialector) { // nolint: funlen
 	tests := []struct {
 		name        string
 		baseURL     string
@@ -43,10 +124,7 @@ func TestTypes(t *testing.T) {
 				{"value": "True"},
 			},
 			router: func() *gin.Engine {
-				return registerModel[struct {
-					models.BaseModel
-					Value bool `json:"value" gorm:"column:value"`
-				}]("/bool_field")
+				return registerModel[BoolModel]("/bool_field", dialector)
 			},
 		},
 		{
@@ -70,10 +148,7 @@ func TestTypes(t *testing.T) {
 				{"value": false},
 			},
 			router: func() *gin.Engine {
-				return registerModel[struct {
-					models.BaseModel
-					Value string `json:"value" gorm:"column:value"`
-				}]("/string_field")
+				return registerModel[StringModel]("/string_field", dialector)
 			},
 		},
 		{
@@ -99,10 +174,7 @@ func TestTypes(t *testing.T) {
 				{"value": "hello world"},
 			},
 			router: func() *gin.Engine {
-				return registerModel[struct {
-					models.BaseModel
-					Value int `json:"value" gorm:"column:value"`
-				}]("/int_field")
+				return registerModel[IntModel]("/int_field", dialector)
 			},
 		},
 		{
@@ -127,10 +199,7 @@ func TestTypes(t *testing.T) {
 				{"value": "hello world"},
 			},
 			router: func() *gin.Engine {
-				return registerModel[struct {
-					models.BaseModel
-					Value uint `json:"value" gorm:"column:value"`
-				}]("/uint_field")
+				return registerModel[UintModel]("/uint_field", dialector)
 			},
 		},
 		{
@@ -153,10 +222,7 @@ func TestTypes(t *testing.T) {
 				{"value": "hello world"},
 			},
 			router: func() *gin.Engine {
-				return registerModel[struct {
-					models.BaseModel
-					Value float64 `json:"value" gorm:"column:value"`
-				}]("/float_field")
+				return registerModel[FloatModel]("/float_field", dialector)
 			},
 		},
 		{
@@ -179,10 +245,7 @@ func TestTypes(t *testing.T) {
 				{"value": false},
 			},
 			router: func() *gin.Engine {
-				return registerModel[struct {
-					models.BaseModel
-					Value models.SliceField[string] `json:"value" gorm:"column:value;type:json"`
-				}]("/string_slice_field")
+				return registerModel[StringSliceModel]("/string_slice_field", dialector)
 			},
 		},
 		{
@@ -206,15 +269,12 @@ func TestTypes(t *testing.T) {
 				{"value": false},
 			},
 			router: func() *gin.Engine {
-				return registerModel[struct {
-					models.BaseModel
-					Value models.SliceField[float64] `json:"value" gorm:"column:value;type:json"`
-				}]("/float_slice_field")
+				return registerModel[FloatSliceModel]("/float_slice_field", dialector)
 			},
 		},
 		{
 			name:    "time.Time type",
-			baseURL: "/time",
+			baseURL: "/time_field",
 			okBodies: []map[string]any{
 				{"value": "2021-01-01T00:00:00Z"},
 				{"value": "2021-01-01T00:00:00+00:00"},
@@ -240,10 +300,7 @@ func TestTypes(t *testing.T) {
 				{"value": nil},
 			},
 			router: func() *gin.Engine {
-				return registerModel[struct {
-					models.BaseModel
-					Value time.Time `json:"value" gorm:"column:value"`
-				}]("/time")
+				return registerModel[TimeModel]("/time_field", dialector)
 			},
 		},
 		{
@@ -266,10 +323,7 @@ func TestTypes(t *testing.T) {
 				{"value": false},
 			},
 			router: func() *gin.Engine {
-				return registerModel[struct {
-					models.BaseModel
-					Value models.SliceField[bool] `json:"value" gorm:"column:value;type:json"`
-				}]("/bool_slice_field")
+				return registerModel[BoolSliceModel]("/bool_slice_field", dialector)
 			},
 		},
 		{
@@ -306,10 +360,7 @@ func TestTypes(t *testing.T) {
 				{"value": 1.23},
 			},
 			router: func() *gin.Engine {
-				return registerModel[struct {
-					models.BaseModel
-					Value models.SliceField[any] `json:"value" gorm:"column:value;type:json"`
-				}]("/any_slice_field")
+				return registerModel[AnySliceModel]("/any_slice_field", dialector)
 			},
 		},
 		{
@@ -324,10 +375,7 @@ func TestTypes(t *testing.T) {
 				{"value": nil},
 			},
 			router: func() *gin.Engine {
-				return registerModel[struct {
-					models.BaseModel
-					Value sql.NullBool `json:"value" gorm:"column:value"`
-				}]("/null_bool_field")
+				return registerModel[NullBoolModel]("/null_bool_field", dialector)
 			},
 		},
 		{
@@ -342,10 +390,7 @@ func TestTypes(t *testing.T) {
 				{"value": nil},
 			},
 			router: func() *gin.Engine {
-				return registerModel[struct {
-					models.BaseModel
-					Value sql.NullString `json:"value" gorm:"column:value"`
-				}]("/null_string_field")
+				return registerModel[NullStringModel]("/null_string_field", dialector)
 			},
 		},
 		{
@@ -375,10 +420,7 @@ func TestTypes(t *testing.T) {
 				{"value": "1.3.37"},
 			},
 			router: func() *gin.Engine {
-				return registerModel[struct {
-					models.BaseModel
-					Value decimal.Decimal `json:"value" gorm:"column:value"`
-				}]("/decimal_field")
+				return registerModel[DecimalModel]("/decimal_field", dialector)
 			},
 		},
 		{
@@ -393,14 +435,10 @@ func TestTypes(t *testing.T) {
 				{"value": nil},
 			},
 			router: func() *gin.Engine {
-				return registerModel[struct {
-					models.BaseModel
-					Value sql.NullFloat64 `json:"value" gorm:"column:value"`
-				}]("/null_float64_field")
+				return registerModel[NullFloat64Model]("/null_float64_field", dialector)
 			},
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
@@ -409,11 +447,11 @@ func TestTypes(t *testing.T) {
 			}
 
 			for _, errorBody := range tt.errorBodies {
-				NewAssertedReq(
+				newRequestTestCase(
 					t,
 					fmt.Sprintf("%s error: %v", tt.name, errorBody),
 				).Req(
-					NewRequest("POST", tt.baseURL, errorBody),
+					newRequest("POST", tt.baseURL, errorBody),
 				).ExCode(
 					http.StatusBadRequest,
 				).Run(tt.router())
@@ -421,60 +459,102 @@ func TestTypes(t *testing.T) {
 
 			for i, okBody := range tt.okBodies {
 				router := tt.router()
-				resourceID := NewAssertedReq(
+				resourceID := newRequestTestCase(
 					t,
 					fmt.Sprintf("%s create", tt.name),
 				).Req(
-					NewRequest("POST", tt.baseURL, okBody),
+					newRequest("POST", tt.baseURL, okBody),
 				).ExCode(
 					http.StatusCreated,
 				).ExJson(
 					tt.okResponses[i],
 				).Run(router)
 
-				NewAssertedReq(
+				newRequestTestCase(
 					t,
 					tt.name,
 				).Req(
-					NewRequest("GET", tt.baseURL, nil),
+					newRequest("GET", tt.baseURL, nil),
 				).ExCode(
 					http.StatusOK,
 				).ExJson(
 					[]any{tt.okResponses[i]},
 				).Run(router)
 
-				NewAssertedReq(
+				newRequestTestCase(
 					t,
 					tt.name,
 				).Req(
-					NewRequest("GET", fmt.Sprintf("%s/%s", tt.baseURL, resourceID), nil),
+					newRequest("GET", fmt.Sprintf("%s/%s", tt.baseURL, resourceID), nil),
 				).ExCode(
 					http.StatusOK,
 				).ExJson(
 					tt.okResponses[i],
 				).Run(router)
 
-				NewAssertedReq(
+				newRequestTestCase(
 					t,
 					tt.name,
 				).Req(
-					NewRequest("DELETE", fmt.Sprintf("%s/%s", tt.baseURL, resourceID), nil),
+					newRequest("DELETE", fmt.Sprintf("%s/%s", tt.baseURL, resourceID), nil),
 				).ExCode(
 					http.StatusNoContent,
 				).Run(router)
 
-				NewAssertedReq(
+				newRequestTestCase(
 					t,
 					tt.name,
 				).Req(
-					NewRequest("GET", tt.baseURL, nil),
+					newRequest("GET", tt.baseURL, nil),
 				).ExCode(
 					http.StatusOK,
 				).ExJson(
 					[]any{},
 				).Run(router)
 			}
-
 		})
 	}
+}
+
+type PostgresTestSuite struct {
+	suite.Suite
+	postgres *embeddedpostgres.EmbeddedPostgres
+	DSN      string
+}
+
+func TestPostgres(t *testing.T) {
+	suite.Run(t, new(PostgresTestSuite))
+}
+
+func (s *PostgresTestSuite) SetupSuite() {
+	s.postgres = embeddedpostgres.NewDatabase()
+	startErr := s.postgres.Start()
+	if startErr == nil || strings.Contains(startErr.Error(), "process already listening") {
+		return
+	}
+	require.NoError(s.T(), startErr)
+}
+
+func (s *PostgresTestSuite) TearDownSuite() {
+	stopErr := s.postgres.Stop()
+	if stopErr == nil || strings.Contains(stopErr.Error(), "server has not been started") {
+		return
+	}
+	require.NoError(s.T(), stopErr)
+}
+
+func (s *PostgresTestSuite) SetupTest() {
+	db, connectErr := sql.Open(
+		"postgres", "host=localhost port=5432 user=postgres password=postgres dbname=postgres sslmode=disable",
+	)
+	require.NoError(s.T(), connectErr)
+	_, dropErr := db.Exec("DROP DATABASE IF EXISTS tests")
+	require.NoError(s.T(), dropErr)
+	_, createErr := db.Exec("CREATE DATABASE tests")
+	require.NoError(s.T(), createErr)
+	s.DSN = "host=localhost port=5432 user=postgres password=postgres dbname=tests sslmode=disable TimeZone=UTC"
+}
+
+func (s *PostgresTestSuite) TestPostgres() {
+	DoTestTypes(s.T(), postgres.Open(s.DSN))
 }

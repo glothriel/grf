@@ -2,11 +2,14 @@ package gormq
 
 import (
 	"fmt"
+	"reflect"
 
 	"github.com/gin-gonic/gin"
+	"github.com/glothriel/grf/pkg/detectors"
 	"github.com/glothriel/grf/pkg/models"
 	"github.com/glothriel/grf/pkg/queries/common"
 	"github.com/glothriel/grf/pkg/queries/crud"
+	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
@@ -33,20 +36,22 @@ func (g gormPagination[Model]) Format(ctx *gin.Context, elems []any) (any, error
 }
 
 type GormQueryDriver[Model any] struct {
-	crud       *crud.CRUD[Model]
-	filter     *gormQueryMod[Model]
-	order      *gormQueryMod[Model]
-	pagination *gormPagination[Model]
+	filter           *gormQueryMod[Model]
+	preloads         *gormQueryMod[Model]
+	fieldNames       map[string]string
+	preloadedQueries []string
+	order            *gormQueryMod[Model]
+	pagination       *gormPagination[Model]
 
 	middleware []gin.HandlerFunc
 }
 
 func (g GormQueryDriver[Model]) CRUD() *crud.CRUD[Model] {
-	return g.crud
+	return GormQueries[Model](g.preloadedQueries)
 }
 
 func (g GormQueryDriver[Model]) Filter() common.QueryMod {
-	return g.filter
+	return common.NewCompositeQueryMod(g.filter, g.preloads)
 }
 
 func (g GormQueryDriver[Model]) Order() common.QueryMod {
@@ -66,6 +71,20 @@ func (g *GormQueryDriver[Model]) WithFilter(filterFunc GormFilterFunc) *GormQuer
 	return g
 }
 
+func (g *GormQueryDriver[Model]) WithPreload(query string, args ...any) *GormQueryDriver[Model] {
+	g.preloads.modFunc = func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
+		fieldName, ok := g.fieldNames[query]
+		if !ok {
+			logrus.Errorf("Could not find field name for query %s, skipping preload", query)
+		} else {
+			db = db.Preload(fieldName, args...)
+		}
+		return db
+	}
+	g.preloadedQueries = append(g.preloadedQueries, query)
+	return g
+}
+
 func (g *GormQueryDriver[Model]) WithPagination(pagination Pagination) *GormQueryDriver[Model] {
 	g.pagination.child = pagination
 	return g
@@ -80,8 +99,14 @@ func (g *GormQueryDriver[Model]) WithOrderBy(orderClause any) *GormQueryDriver[M
 
 func Gorm[Model any](factory GormORMFactory) *GormQueryDriver[Model] {
 	return &GormQueryDriver[Model]{
-		crud: GormQueries[Model](),
+		preloadedQueries: []string{},
+		fieldNames:       detectors.FieldNames[Model](),
 		filter: &gormQueryMod[Model]{
+			modFunc: func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
+				return db
+			},
+		},
+		preloads: &gormQueryMod[Model]{
 			modFunc: func(ctx *gin.Context, db *gorm.DB) *gorm.DB {
 				return db
 			},
@@ -105,25 +130,45 @@ func Gorm[Model any](factory GormORMFactory) *GormQueryDriver[Model] {
 }
 
 // GormQueries returns default queries providing basic CRUD functionality
-func GormQueries[Model any]() *crud.CRUD[Model] {
+func GormQueries[Model any](preloadedQueries []string) *crud.CRUD[Model] {
 	ConvertFromDBToInternalValue := FromDBConverter[Model]()
 	var empty Model
+	var preloadedQueriesMap = make(map[string]bool)
+	for _, query := range preloadedQueries {
+		preloadedQueriesMap[query] = true
+	}
 	return &crud.CRUD[Model]{
 		List: func(ctx *gin.Context) ([]models.InternalValue, error) {
-			rawEntities := []map[string]any{}
-			findErr := CtxQuery(ctx).Model(&empty).Find(&rawEntities).Error
+			rawEntities := []models.InternalValue{}
+			typedEntities := []Model{}
+			findErr := CtxQuery(ctx).Model(&empty).Find(&typedEntities).Error
 			if findErr != nil {
 				return nil, findErr
 			}
-			internalValues := make([]models.InternalValue, len(rawEntities))
-			for i, rawEntity := range rawEntities {
-				internalValue, convertErr := ConvertFromDBToInternalValue(rawEntity)
-				if convertErr != nil {
-					return nil, convertErr
+			for _, entity := range typedEntities {
+				iv := models.AsInternalValue(entity)
+				for k, v := range iv {
+					if _, ok := preloadedQueriesMap[k]; ok {
+						vValue := reflect.ValueOf(v)
+
+						if vValue.Kind() == reflect.Slice {
+							newSlice := make([]any, vValue.Len())
+
+							for i := 0; i < vValue.Len(); i++ {
+								newSlice[i] = models.AsInternalValue(vValue.Index(i).Interface())
+							}
+
+							iv[k] = newSlice
+						} else {
+							iv[k] = models.AsInternalValue(v)
+						}
+					} else {
+						iv[k] = v
+					}
 				}
-				internalValues[i] = internalValue
+				rawEntities = append(rawEntities, iv)
 			}
-			return internalValues, findErr
+			return rawEntities, findErr
 		},
 		Retrieve: func(ctx *gin.Context, id any) (models.InternalValue, error) {
 			var rawEntity map[string]any

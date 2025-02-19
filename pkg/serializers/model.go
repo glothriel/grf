@@ -12,7 +12,7 @@ import (
 )
 
 type ModelSerializer[Model any] struct {
-	Fields map[string]*fields.Field[Model]
+	Fields map[string]fields.Field
 
 	toRepresentationDetector detectors.ToRepresentationDetector[Model]
 	toInternalValueDetector  detectors.ToInternalValueDetector
@@ -28,7 +28,7 @@ func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any, ctx *gin.Co
 			superfluousFields = append(superfluousFields, k)
 			continue
 		}
-		if !field.Writable {
+		if !field.IsWritable() {
 			continue
 		}
 		// Please remember, that `ToInteralValue` doesn't necessarily extract the value from the `raw` map.
@@ -56,7 +56,7 @@ func (s *ModelSerializer[Model]) ToInternalValue(raw map[string]any, ctx *gin.Co
 func (s *ModelSerializer[Model]) ToRepresentation(intVal models.InternalValue, ctx *gin.Context) (Representation, error) {
 	raw := make(map[string]any)
 	for _, field := range s.Fields {
-		if !field.Readable {
+		if !field.IsReadable() {
 			continue
 		}
 		value, err := field.ToRepresentation(intVal, ctx)
@@ -83,12 +83,12 @@ func (s *ModelSerializer[Model]) Validate(intVal models.InternalValue, ctx *gin.
 	return nil
 }
 
-func (s *ModelSerializer[Model]) WithNewField(field *fields.Field[Model]) *ModelSerializer[Model] {
+func (s *ModelSerializer[Model]) WithNewField(field fields.Field) *ModelSerializer[Model] {
 	s.Fields[field.Name()] = field
 	return s
 }
 
-func (s *ModelSerializer[Model]) WithField(name string, updateFunc func(oldField *fields.Field[Model])) *ModelSerializer[Model] {
+func (s *ModelSerializer[Model]) WithField(name string, updateFunc func(oldField fields.Field)) *ModelSerializer[Model] {
 	v, ok := s.Fields[name]
 	if !ok {
 		var m Model
@@ -100,7 +100,7 @@ func (s *ModelSerializer[Model]) WithField(name string, updateFunc func(oldField
 
 func (s *ModelSerializer[Model]) WithModelFields(passedFields []string) *ModelSerializer[Model] {
 
-	s.Fields = make(map[string]*fields.Field[Model])
+	s.Fields = make(map[string]fields.Field)
 	var m Model
 	for _, field := range passedFields {
 		toRepresentation, toRepresentationErr := s.toRepresentationDetector.ToRepresentation(field)
@@ -132,10 +132,15 @@ func (s *ModelSerializer[Model]) WithModelFields(passedFields []string) *ModelSe
 }
 
 func NewModelSerializer[Model any]() *ModelSerializer[Model] {
+	// Includes all the fields
+	return NewModelSerializerWithFields[Model](detectors.Fields[Model]())
+}
+
+func NewModelSerializerWithFields[Model any](fieldList []string) *ModelSerializer[Model] {
 	return (&ModelSerializer[Model]{
 		toRepresentationDetector: detectors.DefaultToRepresentationDetector[Model](),
 		toInternalValueDetector:  detectors.DefaultToInternalValueDetector[Model](),
 	}).WithModelFields(
-		detectors.Fields[Model](),
-	).WithField("id", func(oldField *fields.Field[Model]) { oldField.ReadOnly() })
+		fieldList,
+	).WithField("id", func(oldField fields.Field) { oldField.WithReadOnly() })
 }

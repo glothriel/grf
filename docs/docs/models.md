@@ -40,19 +40,6 @@ The functions use reflection to convert between the types, so they are not the f
 
 ## Model fields
 
-
-:::danger
-
-Those types are not supported yet, but will be in the future:
-
-* time.Time
-* time.Duration
-* `slice<int>`
-* pointer fields, for example `*string`
-* JSON fields, as non-string, dedicated column types (eg. Postgres)
-
-:::
-
 All the model fields must be tagged with a `json` tag, which is used to map the field name in `models.InternalValue`, and thus to (at least default) request and response JSON payloads. Saying that, GRF must know how to:
 
 * Read the field from the storage (in case of GORM, the field should implement the sql.Scanner interface)
@@ -61,7 +48,59 @@ All the model fields must be tagged with a `json` tag, which is used to map the 
 * Write the field to the response JSON payload, read more in the [Serializers](./serializers) section, like above.
 
 
+:::warning
+Those types are not supported yet, but will be in the future:
+* `slice<int>`
+* pointer fields, for example `*string`
+* JSON fields, as non-string, dedicated column types (eg. Postgres)
+:::
+
 ### Slice field
 
-`models.SliceField` can be used to store slices, that are encoded to JSON string for storage (implement sql.Scanner and driver.Valuer interfaces). In request and response JSON payloads, the slice is represented as a JSON array. The types of the slice need to be golang built-in types. The field provides validation of all the elements in the slice.
+`models.SliceField` can be used to store slices, that are encoded to JSON string for storage (implement sql.Scanner and driver.Valuer interfaces). In request and response JSON payloads, the slice is represented as a JSON array. The types of the slice need to be golang built-in basic types. The field provides validation of all the elements in the slice.
 
+## Model relations
+
+GRF models by themselves do not directly support relations, but:
+
+* grf allows setting a `grf:"relation"` tag on the field, that instructs serializers to not treat a field as a basic type and skip initial parsing
+* GORM's query driver `WithPreload` method can be used to [preload](https://gorm.io/docs/preload.html) related models
+* `fields.SerializerField` can be used to include related models in the response JSON payload as a nested object
+
+All of this together allows for a simple implementation of relations in GRF:
+
+```go
+
+type Profile struct {
+	models.BaseModel
+	Name   string  `json:"name" gorm:"size:191;column:name"`
+	Photos []Photo `json:"photos" gorm:"foreignKey:profile_id" grf:"relation"`
+}
+
+type Photo struct {
+	models.BaseModel
+	ProfileID uuid.UUID `json:"profile_id" gorm:"size:191;column:profile_id"`
+}
+
+views.NewModelViewSet[Profile](
+		"/profiles",
+		queries.GORM[Profile](
+			gormDB,
+		).WithPreload(
+			"photos",  // Note JSON tag here, in original GORM API it's the field name
+		).WithOrderBy(
+			"`profiles`.`created_at` ASC",
+		),
+	).WithSerializer(
+		serializers.NewModelSerializer[Profile]().WithNewField(
+			serializers.NewSerializerField[Photo](
+				"photos",
+				serializers.NewModelSerializer[Photo](),
+			),
+		),
+	).Register(router)
+```
+
+:::warning
+    GORM's Joins are not supported, as they are pretty useless anyway. If you need to join tables, you have no choice but to create a view in your SQL database and use it as a model.
+:::

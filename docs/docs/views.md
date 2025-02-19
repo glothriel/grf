@@ -29,18 +29,21 @@ type Person struct {
 
 func main() {
 	ginEngine := gin.Default()
+	// For example's sake, we'll use the in-memory query driver
 	queryDriver := queries.InMemory[Person]()
-	personViewSet := views.NewViewSet("/people", queryDriver).WithActions(views.ActionsList)
+	// NewModelViewSet creates a new ViewSet for the Person model, which uses
+	// NewModelSerializer under the hood
+	personViewSet := views.NewModelViewSet[Person](
+		"/people",
+		queryDriver,
+	// Here we can override REST actions, that are served by the ViewSet
+	).WithActions(views.ActionList)
 
-	// Register the ViewSet with your Gin engine
 	personViewSet.Register(ginEngine)
 
-	// Start your Gin server
 	ginEngine.Run(":8080")
 }
 ```
-
-In this example, we create a basic ViewSet for the `Person` model, and we register it with the Gin engine. The viewset will only respond to List action.
 
 ## Configuring Actions
 
@@ -90,8 +93,6 @@ personViewSet.OnUpdate(customUpdateLogic)
 personViewSet.OnDestroy(customDestroyLogic)
 ```
 
-In this example, we add custom logic for the Create, Update, and Destroy operations.
-
 ## Registering the ViewSet
 
 After configuring your ViewSet and Gin engine, make sure to call the `Register` method to register the ViewSet's routes:
@@ -110,6 +111,7 @@ It's possible to add a custom action for your ViewSet. This can be useful when y
 views.NewViewSet[CustomerProfile](
 	"/me",
 	qd,
+	serializers.NewModelSerializer[CustomerProfile](),
 ).WithExtraAction(
 	views.NewExtraAction[CustomerProfile](
 		"GET",

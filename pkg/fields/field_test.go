@@ -36,7 +36,7 @@ func (m *fieldFuncsMocks) toInternalValueMock(reprModel map[string]any, name str
 
 func TestFieldName(t *testing.T) {
 	// given
-	field := Field[struct{}]{
+	field := ConcreteField[struct{}]{
 		name: "test",
 	}
 
@@ -50,7 +50,7 @@ func TestFieldName(t *testing.T) {
 func TestFieldToRepresentation(t *testing.T) {
 	// given
 	mocks := &fieldFuncsMocks{}
-	field := Field[struct{}]{
+	field := ConcreteField[struct{}]{
 		name:               "foo",
 		representationFunc: mocks.toRepresentationMock,
 	}
@@ -69,7 +69,7 @@ func TestFieldToRepresentation(t *testing.T) {
 func TestFieldToInternalValue(t *testing.T) {
 	// given
 	mocks := &fieldFuncsMocks{}
-	field := Field[struct{}]{
+	field := ConcreteField[struct{}]{
 		name:              "foo",
 		internalValueFunc: mocks.toInternalValueMock,
 	}
@@ -87,10 +87,10 @@ func TestFieldToInternalValue(t *testing.T) {
 
 func TestFieldReadOnly(t *testing.T) {
 	// given
-	field := Field[struct{}]{}
+	field := ConcreteField[struct{}]{}
 
 	// when
-	field.ReadOnly()
+	field.WithReadOnly()
 
 	// then
 	assert.True(t, field.Readable)
@@ -99,10 +99,10 @@ func TestFieldReadOnly(t *testing.T) {
 
 func TestFieldWriteOnly(t *testing.T) {
 	// given
-	field := Field[struct{}]{}
+	field := ConcreteField[struct{}]{}
 
 	// when
-	field.WriteOnly()
+	field.WithWriteOnly()
 
 	// then
 	assert.False(t, field.Readable)
@@ -111,10 +111,10 @@ func TestFieldWriteOnly(t *testing.T) {
 
 func TestFieldReadWrite(t *testing.T) {
 	// given
-	field := Field[struct{}]{}
+	field := ConcreteField[struct{}]{}
 
 	// when
-	field.ReadWrite()
+	field.WithReadWrite()
 
 	// then
 	assert.True(t, field.Readable)
@@ -123,7 +123,7 @@ func TestFieldReadWrite(t *testing.T) {
 
 func TestFieldWithRepresentationFunc(t *testing.T) {
 	// given
-	field := Field[struct{}]{}
+	field := ConcreteField[struct{}]{}
 	funcCalls := 0
 	f := func(models.InternalValue, string, *gin.Context) (any, error) {
 		funcCalls++
@@ -140,7 +140,7 @@ func TestFieldWithRepresentationFunc(t *testing.T) {
 
 func TestFieldWithInternalValueFunc(t *testing.T) {
 	// given
-	field := Field[struct{}]{}
+	field := ConcreteField[struct{}]{}
 	funcCalls := 0
 	f := func(map[string]any, string, *gin.Context) (any, error) {
 		funcCalls++

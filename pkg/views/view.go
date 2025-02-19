@@ -62,7 +62,7 @@ func (v *View) AddMiddleware(m ...gin.HandlerFunc) *View {
 	return v
 }
 
-func (v *View) Register(r *gin.Engine) {
+func (v *View) Register(r gin.IRouter) {
 	rg := r.Group(v.path, v.middleware...)
 	if v.getHandler != nil {
 		rg.GET("", v.getHandler)

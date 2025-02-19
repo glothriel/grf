@@ -60,6 +60,29 @@ Driver configured in such way:
 * Sorts the list of products by name in ascending order
 * Uses limit/offset pagination provided by gorm query driver package
 
+#### Transactions
+
+All the default REST actions are performed in a single query, thus a transaction is not strictly needed. If however you'd like your action to have some side-effects (for example saving an entry in an audit log), you can use GORM query driver's transaction support.
+
+```go
+queryDriver.CRUD().WithCreate(
+    gormq.CreateTx(
+        gormq.BeforeCreate(
+            func(ctx *gin.Context, iv models.InternalValue, tx *gorm.DB) (models.InternalValue, error) {
+                // do whatever you want with tx before creating
+                return iv, nil
+            },
+        ),
+    )(queryDriver.CRUD().Create),
+)
+```
+
+The API is a little bit complex (with functions returning functions creating functions 🤣), so it may be changed at some point, but for now it does the job.
+
+#### Relationships
+
+GORM query driver supports basic relationships between models. See more in [model relations section](./models#model-relations).
+
 ### InMemory `queries.InMemory()`
 
 InMemory query driver is a simple implementation of QueryDriver interface, that stores all the data in memory. It's useful for testing and prototyping, but it definetly should not be used in production. It doesn't support any filtering, sorting or pagination.
