@@ -14,6 +14,7 @@ import (
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
+	"gorm.io/datatypes"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -91,6 +92,11 @@ type DecimalModel struct {
 type NullFloat64Model struct {
 	models.BaseModel
 	Value sql.NullFloat64 `json:"value" gorm:"column:value"`
+}
+
+type NestedJSONModel struct {
+	models.BaseModel
+	Value datatypes.JSON `json:"value" gorm:"column:value"`
 }
 
 func DoTestTypes(t *testing.T, dialector gorm.Dialector) { // nolint: funlen
@@ -436,6 +442,31 @@ func DoTestTypes(t *testing.T, dialector gorm.Dialector) { // nolint: funlen
 			},
 			router: func() *gin.Engine {
 				return registerModel[NullFloat64Model]("/null_float64_field", dialector)
+			},
+		},
+		{
+			name:    "Nested JSON field",
+			baseURL: "/nested_json_field",
+			okBodies: []map[string]any{
+				{"value": map[string]string{"foo": "bar"}},
+				{"value": []int{1, 2, 3}},
+				{"value": []bool{true, false}},
+				{"value": true},
+				{"value": "hello world"},
+				{"value": "1,337"},
+				{"value": "1.3.37"},
+			},
+			okResponses: []map[string]any{
+				{"value": map[string]any{"foo": "bar"}},
+				{"value": []any{1.0, 2.0, 3.0}},
+				{"value": []any{true, false}},
+				{"value": true},
+				{"value": "hello world"},
+				{"value": "1,337"},
+				{"value": "1.3.37"},
+			},
+			router: func() *gin.Engine {
+				return registerModel[NestedJSONModel]("/nested_json_field", dialector)
 			},
 		},
 	}
